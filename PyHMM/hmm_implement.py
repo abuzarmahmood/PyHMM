@@ -6,14 +6,10 @@
 import numpy as np
 import DiscreteHMM
 import pylab as plt
-
 import matplotlib
-
 import tables
-import easygui
-import sys
 import os
-import shutil # needed to remove nested directories system doesn't take care of
+
 
 
 #  _                     _             _ _    _                   _       _        
@@ -33,10 +29,6 @@ for line in f.readlines():
 	dir_name.append(line)
 f.close()
 os.chdir(dir_name[0][:-1])
-
-# Pull out the NSLOTS - number of CPUs allotted
-#n_cpu = int(os.getenv('NSLOTS'))
-n_cpu = 4 #int(sys.argv[1])
 
 # Get the names of all files in the current directory, and find the .params and hdf5 (.h5) file
 file_list = os.listdir('./')
@@ -109,6 +101,7 @@ off_spikes = binned_spikes[off_trials,:,:]
 on_spikes = binned_spikes[on_trials,:,:]
 dat_shape = (binned_spikes.shape[1],binned_spikes.shape[0],binned_spikes.shape[2])
 binned_spikes_re = binned_spikes.reshape(dat_shape)
+
 #  ______ _ _     __  __           _      _ 
 # |  ____(_) |   |  \/  |         | |    | |
 # | |__   _| |_  | \  / | ___   __| | ___| |
@@ -118,25 +111,112 @@ binned_spikes_re = binned_spikes.reshape(dat_shape)
 #
 
 num_states = 3
+seeds = 30
+best_log_lik = 0
 
-model = DiscreteHMM.IndependentBernoulliHMM(num_states = num_states, num_emissions = binned_spikes.shape[1], 
-        max_iter = 1000, threshold = 1e-6)
+for seed in range(seeds):
+    
+    np.random.seed(seed)
+    model = DiscreteHMM.IndependentBernoulliHMM(num_states = num_states, num_emissions = binned_spikes.shape[1], 
+    max_iter = 1000, threshold = 1e-9)
+    
+    # Define probabilities and pseudocounts
+    p_transitions = np.abs(np.eye(num_states) - np.random.rand(num_states,num_states)*0.05) #(num_states X num_states)
+    p_emissions = np.random.random(size=(num_states, binned_spikes.shape[1])) #(num_states X num_emissions)
+    p_start = np.random.random(num_states) #(num_states)
+    start_pseuedocounts = np.ones(num_states) #(num_states)
+    transition_pseudocounts = np.abs(np.eye(num_states)*1500 - np.random.rand(num_states,num_states)*1500*0.05) #(num_states X num_states)
+    
+    # Emission pseudocounts : Average count of a neuron/trial, on and off in same ratio as firing probability 
+    avg_firing_p = np.tile(np.mean(binned_spikes,axis = (0,2)),(num_states,1))
+    avg_off_p = np.tile(np.ones((1,binned_spikes.shape[1])) - np.mean(binned_spikes,axis = (0,2)), (num_states,1))
+    emission_pseudocounts =  np.dstack((avg_firing_p,avg_off_p))*150 #(num_states X num_emissions X 2)
+    
+    model.fit(data=binned_spikes_re, p_transitions=p_transitions, p_emissions=p_emissions, 
+              p_start=p_start, transition_pseudocounts=transition_pseudocounts, emission_pseudocounts=emission_pseudocounts, 
+              start_pseudocounts=start_pseuedocounts, verbose = 0)
+    
+    current_log_lik = model.log_likelihood[-1] 
+    print(current_log_lik)
+    
+    if best_log_lik == 0:
+        best_log_lik = current_log_lik
+        best_model = model
+    elif current_log_lik < best_log_lik:
+        best_log_lik = current_log_lik
+        best_model = model
+    
+alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = best_model.E_step()
 
-# Define probabilities and pseudocounts
-p_transitions = np.abs(np.eye(num_states) - np.random.rand(num_states,num_states)*0.05) #(num_states X num_states)
-p_emissions = np.random.random(size=(num_states, binned_spikes.shape[1])) #(num_states X num_emissions)
-p_start = np.random.random(num_states) #(num_states)
-start_pseuedocounts = np.ones(num_states) #(num_states)
-transition_pseudocounts = np.abs(np.eye(num_states)*1500 - np.random.rand(num_states,num_states)*1500*0.05) #(num_states X num_states)
+#  _____                _ _      _ _          _   _                       _   _                       _   
+# |  __ \              | | |    | (_)        | | (_)                 /\  | | | |                     | |  
+# | |__) |_ _ _ __ __ _| | | ___| |_ ______ _| |_ _  ___  _ __      /  \ | |_| |_ ___ _ __ ___  _ __ | |_ 
+# |  ___/ _` | '__/ _` | | |/ _ \ | |_  / _` | __| |/ _ \| '_ \    / /\ \| __| __/ _ \ '_ ` _ \| '_ \| __|
+# | |  | (_| | | | (_| | | |  __/ | |/ / (_| | |_| | (_) | | | |  / ____ \ |_| ||  __/ | | | | | |_) | |_ 
+# |_|   \__,_|_|  \__,_|_|_|\___|_|_/___\__,_|\__|_|\___/|_| |_| /_/    \_\__|\__\___|_| |_| |_| .__/ \__|
+#                                                                                              | |        
+#                                                                                              |_|
 
-# Emission pseudocounts : Average count of a neuron/trial, on and off in same ratio as firing probability 
-avg_firing_p = np.tile(np.mean(binned_spikes,axis = (0,2)),(num_states,1))
-avg_off_p = np.tile(np.ones((1,binned_spikes.shape[1])) - np.mean(binned_spikes,axis = (0,2)), (num_states,1))
-emission_pseudocounts =  np.dstack((avg_firing_p,avg_off_p))*150 #(num_states X num_emissions X 2)
+# Cast HMM run as a function and use joblib to run on multiple cores
 
-model.fit(data=binned_spikes_re, p_transitions=p_transitions, p_emissions=p_emissions, 
-          p_start=p_start, transition_pseudocounts=transition_pseudocounts, emission_pseudocounts=emission_pseudocounts, 
-          start_pseudocounts=start_pseuedocounts, verbose = False)
+import multiprocessing as mp
 
-alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model.E_step()
-plt.plot(expected_latent_state[:, 0, :].T)
+num_states = 3
+num_seeds = 30
+
+def hmm_fit(binned_spikes,seed,num_states):
+    np.random.seed(seed)
+    model = DiscreteHMM.IndependentBernoulliHMM(num_states = num_states, num_emissions = binned_spikes.shape[1], 
+    max_iter = 1000, threshold = 1e-9)
+
+    # Define probabilities and pseudocounts
+    p_transitions = np.abs(np.eye(num_states) - np.random.rand(num_states,num_states)*0.05) #(num_states X num_states)
+    p_emissions = np.random.random(size=(num_states, binned_spikes.shape[1])) #(num_states X num_emissions)
+    p_start = np.random.random(num_states) #(num_states)
+    start_pseuedocounts = np.ones(num_states) #(num_states)
+    transition_pseudocounts = np.abs(np.eye(num_states)*1500 - np.random.rand(num_states,num_states)*1500*0.05) #(num_states X num_states)
+    
+    # Emission pseudocounts : Average count of a neuron/trial, on and off in same ratio as firing probability 
+    avg_firing_p = np.tile(np.mean(binned_spikes,axis = (0,2)),(num_states,1))
+    avg_off_p = np.tile(np.ones((1,binned_spikes.shape[1])) - np.mean(binned_spikes,axis = (0,2)), (num_states,1))
+    emission_pseudocounts =  np.dstack((avg_firing_p,avg_off_p))*150 #(num_states X num_emissions X 2)
+    
+    model.fit(data=binned_spikes_re, p_transitions=p_transitions, p_emissions=p_emissions, 
+    p_start=p_start, transition_pseudocounts=transition_pseudocounts, emission_pseudocounts=emission_pseudocounts, 
+    start_pseudocounts=start_pseuedocounts, verbose = 0)
+    
+    alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model.E_step()
+    
+    return model.log_likelihood[-1], expected_latent_state
+    
+n_cpu = 4
+pool = mp.Pool(processes = n_cpu)
+results = [pool.apply_async(hmm_fit, args = (binned_spikes, seed, num_states)) for seed in range(seeds)]
+output = [p.get() for p in results]
+
+log_probs = [output[i][1] for i in range(len(output))]
+maximum_pos = np.where(log_probs == np.max(log_probs))[0][0]
+#return output[maximum_pos]
+
+#  _____  _       _     _____        _        
+# |  __ \| |     | |   |  __ \      | |       
+# | |__) | | ___ | |_  | |  | | __ _| |_ __ _ 
+# |  ___/| |/ _ \| __| | |  | |/ _` | __/ _` |
+# | |    | | (_) | |_  | |__| | (_| | || (_| |
+# |_|    |_|\___/ \__| |_____/ \__,_|\__\__,_|
+#
+
+plt.plot(range(0,int(binned_spikes.shape[2])*bin_size,bin_size),expected_latent_state[:, 0, :].T)
+
+for i in range(binned_spikes.shape[0]):
+    fig = plt.figure()
+    plt.plot(range(0,int(binned_spikes.shape[2])*bin_size,bin_size),expected_latent_state[:, i, :].T*len(chosen_units))
+    for unit in range(len(chosen_units)):
+        for j in range(spikes.shape[2]):
+            if spikes[i, unit, j] > 0:
+                plt.vlines(j - pre_stim_hmm, unit, unit + 0.5, linewidth = 0.5)
+    plt.xlabel('Time post stimulus (ms)')
+    plt.ylabel('Probability of HMM states')
+    plt.title('Trial %i' % (i+1))
+    	#fig.savefig('HMM_plots/dig_in_%i/Multinomial/states_%i/Trial_%i.png' % (taste, result[0], (i+1)))
+    	#plt.close("all")
