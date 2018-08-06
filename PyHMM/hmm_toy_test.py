@@ -77,10 +77,13 @@ for trial in range(data.shape[1]):
                     data[neuron, trial, time] = np.random.binomial(1, p[state_order[trans_count],neuron])
     
 # Raster plot
-def raster(data,trans_times):
+def raster(data,trans_times,expected_latent_state=None):
     # Take two 2D arrays: 
         # data : neurons x time
         # trans_times : num_transition x neurons
+        # expected_latent_state: states x time
+    if expected_latent_state is not None:
+        plt.plot(expected_latent_state.T*data.shape[0])
     for unit in range(data.shape[0]):
         for time in range(data.shape[1]):
             if data[unit, time] > 0:
@@ -91,12 +94,9 @@ def raster(data,trans_times):
     plt.xlabel('Time post stimulus (ms)')
     plt.ylabel('Neuron')
 
-####### Check
 for i in range(10):#data.shape[1]):
     plt.figure(i)
     raster(data[:,i,:],t[i,:,:])
-
-  
 #  ______ _ _     _    _ __  __ __  __ 
 # |  ____(_) |   | |  | |  \/  |  \/  |
 # | |__   _| |_  | |__| | \  / | \  / |
@@ -105,19 +105,23 @@ for i in range(10):#data.shape[1]):
 # |_|    |_|\__| |_|  |_|_|  |_|_|  |_|
 #        
 
+# MAP Estimate
+
 # from hmm_fit import hmm_fit
-from hmm_fit_multi import hmm_fit_multi
+#from hmm_fit_multi import hmm_fit_multi
 
-model_MAP = hmm_fit_multi(data,30,7,7,4)
+from map_hmm_funcs import *
 
-# MAP model
-model_MAP = DiscreteHMM.IndependentBernoulliHMM(num_states = 5, num_emissions = data.shape[0], max_iter = 1000, threshold = 1e-4)
-# Fit with very weak priors. Just 1 pseudocount, probably ok for start probabilities, but likely more pseudocounts
-# needed for the transition and emission probabilities
-model_MAP.fit(data=data, p_transitions=np.random.random(size=(5, 5)), p_emissions=np.random.random(size=(5, data.shape[0])), 
-          p_start=np.random.random(5), transition_pseudocounts=np.ones((5, 5)), emission_pseudocounts=np.ones((5, data.shape[0], 2)), 
-          start_pseudocounts=np.ones(5), verbose = False)
-model_MAP.converged
-# Get the posterior probabilities of the states from the E step
-alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
-plt.plot(expected_latent_state[:, 0, :].T)
+model_MAP = hmm_fit_multi(data,30,7,20)
+expected_latent_state = model_MAP[1]
+p_transitions = model_MAP[2]
+
+####### Check
+for i in range(10):#data.shape[1]):
+    plt.figure(i)
+    raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
+
+plt.figure()
+hinton(p_transitions)
+
+# Variational Inference HMM
