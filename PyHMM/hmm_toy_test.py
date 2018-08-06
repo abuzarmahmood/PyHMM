@@ -105,7 +105,10 @@ for i in range(10):#data.shape[1]):
 # |_|    |_|\__| |_|  |_|_|  |_|_|  |_|
 #        
 
-from hmm_implement_discrete import hmm_fit
+# from hmm_fit import hmm_fit
+from hmm_fit_multi import hmm_fit_multi
+
+model_MAP = hmm_fit_multi(data,30,7,7,4)
 
 # MAP model
 model_MAP = DiscreteHMM.IndependentBernoulliHMM(num_states = 5, num_emissions = data.shape[0], max_iter = 1000, threshold = 1e-4)
