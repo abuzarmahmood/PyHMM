@@ -15,8 +15,6 @@
 
 # Import stuff
 import numpy as np
-import DiscreteHMM
-import variationalHMM
 from hinton import hinton
 
 #%matplotlib inline
