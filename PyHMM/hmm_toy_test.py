@@ -108,11 +108,13 @@ for i in range(10):#data.shape[1]):
 # from hmm_fit import hmm_fit
 #from hmm_fit_multi import hmm_fit_multi
 
-from map_hmm_funcs import *
+from hmm_fit_funcs import *
 
-model_MAP = hmm_fit_multi(data,30,7,20)
-expected_latent_state = model_MAP[1]
-p_transitions = model_MAP[2]
+model_MAP = hmm_map_fit_multi(data,30,7)
+
+
+#expected_latent_state = model_MAP[1]
+alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
 
 ####### Check
 for i in range(10):#data.shape[1]):
@@ -120,6 +122,15 @@ for i in range(10):#data.shape[1]):
     raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
 
 plt.figure()
-hinton(p_transitions)
+hinton(model_MAP.p_transitions.T)
 
 # Variational Inference HMM
+model_VI = hmm_var_fit_multi(data, model_MAP, 30, 7)
+alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_VI.E_step()
+
+####### Check
+for i in range(10):#data.shape[1]):
+    plt.figure(i)
+    raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
+plt.figure()
+hinton(model_VI.transition_counts)

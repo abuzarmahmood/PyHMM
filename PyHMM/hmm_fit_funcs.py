@@ -47,14 +47,15 @@ def hmm_map_fit(binned_spikes,seed,num_states):
 # =============================================================================
     return model
 
-def hmm_map_fit_multi(binned_spikes,num_seeds,num_states,n_cpu):
+def hmm_map_fit_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count()):
     pool = mp.Pool(processes = n_cpu)
-    results = [pool.apply_async(hmm_fit, args = (binned_spikes, seed, num_states)) for seed in range(num_seeds)]
+    results = [pool.apply_async(hmm_map_fit, args = (binned_spikes, seed, num_states)) for seed in range(num_seeds)]
     output = [p.get() for p in results]
     #pool.close()
     #pool.join()  
     
-    log_probs = [output[i][1] for i in range(len(output))]
+    #log_probs = [output[i][1] for i in range(len(output))]
+    log_probs = [output[i].log_likelihood[-1] for i in range(len(output))]
     maximum_pos = np.where(log_probs == np.max(log_probs))[0][0]
     fin_out = output[maximum_pos]
     return fin_out
@@ -66,7 +67,7 @@ def hmm_map_fit_multi(binned_spikes,num_seeds,num_states,n_cpu):
 #    \  / (_| | |  | | (_| | |_| | (_) | | | | (_| | |
 #     \/ \__,_|_|  |_|\__,_|\__|_|\___/|_| |_|\__,_|_|
 #
-def hmm_var_fit(binned_spikes,MAP_p_emissions,seed,num_states):
+def hmm_var_fit(binned_spikes,initial_model,seed,num_states):
     
     np.random.seed(seed)
     model_VI = variationalHMM.IndependentBernoulliHMM(num_states = num_states, num_emissions = binned_spikes.shape[0], 
@@ -74,29 +75,25 @@ def hmm_var_fit(binned_spikes,MAP_p_emissions,seed,num_states):
 
     # Define probabilities and pseudocounts
     p_emissions_bernoulli = np.zeros((model_VI.num_states, binned_spikes.shape[0], 2))
-    p_emissions_bernoulli[:, :, 0] = model_MAP.p_emissions
-    p_emissions_bernoulli[:, :, 1] = 1.0 - model_MAP.p_emissions
+    p_emissions_bernoulli[:, :, 0] = initial_model.p_emissions
+    p_emissions_bernoulli[:, :, 1] = 1.0 - initial_model.p_emissions
     
-    model.fit(data=binned_spikes, p_transitions=p_transitions, p_emissions=p_emissions, 
-    p_start=p_start, transition_pseudocounts=transition_pseudocounts, emission_pseudocounts=emission_pseudocounts, 
-    start_pseudocounts=start_pseuedocounts, verbose = 0)
-    
-    alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model.E_step()
-    converged_val = model.converged
-    fin_log_lik = model.log_likelihood[-1]
-    p_transitions = model.p_transitions
-    
-    del model  
-    return fin_log_lik, expected_latent_state, p_transitions, converged_val
+    model_VI.fit(data = binned_spikes, transition_hyperprior = 1, emission_hyperprior = 1, start_hyperprior = 1, 
+          initial_transition_counts = 30*initial_model.p_transitions, initial_emission_counts = 30*p_emissions_bernoulli,
+            initial_start_counts = 2*initial_model.p_start, update_hyperpriors = True, update_hyperpriors_iter = 1,
+            verbose = False)
 
-def hmm_map_fit_multi(binned_spikes,num_seeds,num_states,n_cpu):
+    return model_VI
+
+def hmm_var_fit_multi(binned_spikes,initial_model,num_seeds,num_states,n_cpu = mp.cpu_count()):
     pool = mp.Pool(processes = n_cpu)
-    results = [pool.apply_async(hmm_fit, args = (binned_spikes, seed, num_states)) for seed in range(num_seeds)]
+    results = [pool.apply_async(hmm_var_fit, args = (binned_spikes, initial_model, seed, num_states)) for seed in range(num_seeds)]
     output = [p.get() for p in results]
     #pool.close()
     #pool.join()  
     
-    log_probs = [output[i][1] for i in range(len(output))]
-    maximum_pos = np.where(log_probs == np.max(log_probs))[0][0]
+    #log_probs = [output[i][1] for i in range(len(output))]
+    elbo = [output[i].ELBO[-1] for i in range(len(output))]
+    maximum_pos = np.where(elbo == np.max(elbo))[0][0]
     fin_out = output[maximum_pos]
-    return fin_out                                                    
+    return fin_out                                                   
