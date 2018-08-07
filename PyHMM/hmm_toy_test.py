@@ -16,9 +16,11 @@
 # Import stuff
 import numpy as np
 from hinton import hinton
+from hmm_fit_funcs import *
 
 #%matplotlib inline
 import pylab as plt
+import pickle
 
 
 #  ______    _          _____        _        
@@ -37,15 +39,10 @@ import pylab as plt
 data = np.zeros((10, 20, 300)) # neurons x trials x time
 
 ceil_p = 0.1 # Maximum firing probability -> Make shit sparse
-p = np.random.rand(2, data.shape[0])*ceil_p # states x neuron
-# Don't need to normalize across neurons
-# =============================================================================
-# for state in range(p.shape[0]):
-#     p[state,:] = p[state,:]/np.sum(p,axis = 1)[state]
-# =============================================================================
-    
+p = np.random.rand(2, data.shape[0])*ceil_p # states x neuron   
 jitter_t = 20 # Jitter between transition times for neurons on same trial
 min_duration = 70 # Min time of 1st transition & time b/w transitions & time of 2nd transition before end
+
 t = np.zeros((data.shape[1], 2)) # trials x num of transitions (2) 
 for trial in range(t.shape[0]):
     while ((t[trial,0] < min_duration) or (t[trial,1] < t[trial,0] + min_duration) or (t[trial,1] + min_duration > data.shape[2] ) ):
@@ -53,7 +50,6 @@ for trial in range(t.shape[0]):
 t = np.repeat(t[:, :, np.newaxis], data.shape[0], axis=2) # trials x num of transitions (2) x neurons
 t = t + np.random.random(t.shape)*jitter_t
 t = t.astype('int')
-#t = np.reshape(t,(t.shape[0],t.shape[2],t.shape[1])) # trials x neurons x transitions
 
 state_order = np.asarray([0,1,0]) # use one order for all trials; len = num_transitions + 1
 
@@ -92,9 +88,11 @@ def raster(data,trans_times,expected_latent_state=None):
     plt.xlabel('Time post stimulus (ms)')
     plt.ylabel('Neuron')
 
-for i in range(10):#data.shape[1]):
+# Look at raster for fake data
+for i in range(10):
     plt.figure(i)
     raster(data[:,i,:],t[i,:,:])
+
 #  ______ _ _     _    _ __  __ __  __ 
 # |  ____(_) |   | |  | |  \/  |  \/  |
 # | |__   _| |_  | |__| | \  / | \  / |
@@ -103,20 +101,21 @@ for i in range(10):#data.shape[1]):
 # |_|    |_|\__| |_|  |_|_|  |_|_|  |_|
 #        
 
-# MAP Estimate
+# MAP fit with correct number of states in model
+model_MAP_c = hmm_map_fit_multi(data,30,2)
+alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP_c.E_step()
 
-# from hmm_fit import hmm_fit
-#from hmm_fit_multi import hmm_fit_multi
+for i in range(10):#data.shape[1]):
+    plt.figure(i)
+    raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
 
-from hmm_fit_funcs import *
+plt.figure()
+hinton(model_MAP_c.p_transitions.T)
 
+# MAP fit with excess states in model
 model_MAP = hmm_map_fit_multi(data,30,7)
-
-
-#expected_latent_state = model_MAP[1]
 alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
 
-####### Check
 for i in range(10):#data.shape[1]):
     plt.figure(i)
     raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
@@ -124,13 +123,23 @@ for i in range(10):#data.shape[1]):
 plt.figure()
 hinton(model_MAP.p_transitions.T)
 
-# Variational Inference HMM
-model_VI = hmm_var_fit_multi(data, model_MAP, 30, 7)
+# Variational Inference HMM fit with excess states in model
+model_VI = hmm_var_fit_multi(data,model_MAP,30,7)
 alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_VI.E_step()
 
-####### Check
 for i in range(10):#data.shape[1]):
     plt.figure(i)
     raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
 plt.figure()
 hinton(model_VI.transition_counts)
+
+
+#           _ _                                  _      _____ _               _    
+#     /\   | (_)                                | |    / ____| |             | |   
+#    /  \  | |_  __ _ _ __  _ __ ___   ___ _ __ | |_  | |    | |__   ___  ___| | __
+#   / /\ \ | | |/ _` | '_ \| '_ ` _ \ / _ \ '_ \| __| | |    | '_ \ / _ \/ __| |/ /
+#  / ____ \| | | (_| | | | | | | | | |  __/ | | | |_  | |____| | | |  __/ (__|   < 
+# /_/    \_\_|_|\__, |_| |_|_| |_| |_|\___|_| |_|\__|  \_____|_| |_|\___|\___|_|\_\
+#                __/ |                                                             
+#               |___/
+#

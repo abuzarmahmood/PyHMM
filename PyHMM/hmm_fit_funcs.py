@@ -94,6 +94,7 @@ def hmm_var_fit_multi(binned_spikes,initial_model,num_seeds,num_states,n_cpu = m
     
     #log_probs = [output[i][1] for i in range(len(output))]
     elbo = [output[i].ELBO[-1] for i in range(len(output))]
+    #maximum_pos = np.where(elbo == np.max(elbo))[0][0]
     maximum_pos = np.where(elbo == np.max(elbo))[0][0]
     fin_out = output[maximum_pos]
     return fin_out                                                   
