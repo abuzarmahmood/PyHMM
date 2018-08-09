@@ -34,76 +34,46 @@ import os
 nrns = 10
 trials = 15
 length = 300
-num_states = 2
-state_order = np.asarray([0,1,0]) # use one order for all trials; len = num_transitions + 1
+data_num_states = 3
+state_order = np.asarray([0,1,0,2]) # use one order for all trials; len = num_transitions + 1
 
 ceil_p = 0.1 # Maximum firing probability -> Make shit sparse   
-#jitter_t = 10 # Jitter between transition times for neurons on same trial
-min_duration = 70 # Min time of 1st transition & time b/w transitions & time of 2nd transition before end
+jitter_t = 30 # Jitter from mean transition times for neurons on same trial
+min_duration = 50 # Min time of 1st transition & time b/w transitions & time of 2nd transition before end
+
+out = fake_firing(nrns=nrns,trials=trials,length=length,num_states=data_num_states, \
+               state_order=state_order,ceil_p=ceil_p,jitter_t=jitter_t,min_duration=min_duration)
+data = out[0]
+t = out[1]
+p = out[2]
 
 # Look at raster for fake data
-for i in [0]:#range(data.shape[1]):
+for i in range(data.shape[1]):
     plt.figure(i)
     raster(data[:,i,:],t[i,:,:])
-
-# MAP fit with correct number of states in model
-# =============================================================================
-# model_MAP_c = hmm_map_fit_multi(data,30,2)
-# alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP_c.E_step()
-# 
-# for i in range(data.shape[1]):
-#     plt.figure(i)
-#     raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
-#     plt.savefig('%i_MAP_2st.png' % i)
-#     plt.close(i)
-# 
-# plt.figure()
-# hinton(model_MAP_c.p_transitions.T)
-# plt.savefig('hinton_MAP_2st.png')
-# plt.close()
-# =============================================================================
-state_num = 2
-for jitter_t in [10,20,40,80]:
-    out = fake_firing(nrns=nrns,trials=trials,length=length,num_states=num_states, \
-                   state_order=state_order,ceil_p=ceil_p,jitter_t=jitter_t,min_duration=min_duration)
-    data = out[0]
-    t = out[1]
-    #folder_name = 'var_state_comparison/4_state_data/%i_states' % state_num
-    folder_name = 'jitter_t_comparison/%i_jitter/' % jitter_t
+    
+###
+for model_num_states in range(2,8):
+    folder_name = 'var_state_comparison/2_state_data/%i_states' % model_num_state
     os.makedirs(folder_name)
-    # MAP fit with excess states in model
-    model_MAP = hmm_map_fit_multi(data,30,state_num)
-    #alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
     
-# =============================================================================
-#     for i in range(data.shape[1]):
-#         plt.figure(i)
-#         raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
-#         plt.savefig('%i_MAP_7st.png' % i)
-#         plt.close(i)
-#         
-#     plt.figure()
-#     hinton(model_MAP.p_transitions.T)
-#     
-#     plt.savefig('hinton_MAP_7st.png')
-#     plt.close()
-# =============================================================================
-    
-    # Variational Inference HMM fit with excess states in model
-    model_VI = hmm_var_fit_multi(data,model_MAP,30,state_num)
+    # MAP HMM 
+    model_MAP = hmm_map_fit_multi(data,30,model_num_states)
+
+    # Variational Inference HMM
+    model_VI = hmm_var_fit_multi(data,model_MAP,30,model_num_states)
     alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_VI.E_step()
     
     for i in range(data.shape[1]):
         plt.figure()
         raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
-        #plt.savefig(folder_name + '/' + '%i_var_%ist.png' % (i,state_num))
-        plt.savefig(folder_name + '/' + '%i_var_%i_jitter.png' % (i,jitter_t))
+        plt.savefig(folder_name + '/' + '%i_var_%ist.png' % (i,model_num_states))
         plt.close(i)
     
     plt.figure()
     hinton(model_VI.transition_counts)
     plt.title('ELBO = %f' %model_VI.ELBO[-1])
-    plt.savefig(folder_name + '/' + 'hinton_var_%i_jitter_t.png' % jitter_t)
+    plt.savefig(folder_name + '/' + 'hinton_var_%ist.png' % model_num_states)
     plt.close()
 
 

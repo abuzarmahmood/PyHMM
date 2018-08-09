@@ -69,6 +69,7 @@ def fake_firing(nrns,trials,length,num_states,state_order,ceil_p,jitter_t,min_du
                         data[neuron, trial, time] = np.random.binomial(1, p[state_order[trans_count],neuron])
     return data, t, p
 
+
 # Raster plot
 def raster(data,trans_times,expected_latent_state=None):
     # Take two 2D arrays: 
@@ -77,11 +78,12 @@ def raster(data,trans_times,expected_latent_state=None):
         # expected_latent_state: states x time
     # Red lines indicate mean transition times
     # Yellow ticks indicate individual neuron transition times
+    
     if expected_latent_state is not None:
         plt.plot(expected_latent_state.T*data.shape[0])
     for unit in range(data.shape[0]):
         for transition in range(trans_times.shape[0]):
-            plt.vlines(trans_times[transition,unit], unit, unit+0.5, linewidth = 0.5, color = 'y')
+            plt.vlines(trans_times[transition,unit], unit, unit+0.5, linewidth = 3, color = 'y')
         for time in range(data.shape[1]):
             if data[unit, time] > 0:
                 plt.vlines(time, unit, unit + 0.5, linewidth = 0.5)
