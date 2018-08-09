@@ -17,10 +17,12 @@
 import numpy as np
 from hinton import hinton
 from hmm_fit_funcs import *
+from scipy.interpolate import spline
 
 #%matplotlib inline
 import pylab as plt
 import pickle
+import os
 
 
 #  ______    _          _____        _        
@@ -36,22 +38,33 @@ import pickle
 # Randomize state transition times
 
 ### Set neuron and trial numbers using data dimensions ###
-data = np.zeros((10, 20, 300)) # neurons x trials x time
+data = np.zeros((10, 15, 300)) # neurons x trials x time
+num_states = 4
+state_order = np.asarray([0,1,2,3]) # use one order for all trials; len = num_transitions + 1
 
-ceil_p = 0.1 # Maximum firing probability -> Make shit sparse
-p = np.random.rand(2, data.shape[0])*ceil_p # states x neuron   
-jitter_t = 20 # Jitter between transition times for neurons on same trial
-min_duration = 70 # Min time of 1st transition & time b/w transitions & time of 2nd transition before end
+ceil_p = 0.1 # Maximum firing probability -> Make shit sparse   
+jitter_t = 10 # Jitter between transition times for neurons on same trial
+min_duration = 30 # Min time of 1st transition & time b/w transitions & time of 2nd transition before end
 
-t = np.zeros((data.shape[1], 2)) # trials x num of transitions (2) 
+p = np.random.rand(num_states, data.shape[0])*ceil_p # states x neuron
+
+t = np.zeros((data.shape[1], len(state_order)-1)) # trials x num of transitions (2) 
 for trial in range(t.shape[0]):
-    while ((t[trial,0] < min_duration) or (t[trial,1] < t[trial,0] + min_duration) or (t[trial,1] + min_duration > data.shape[2] ) ):
+    #count = 0
+    first_trans, last_trans, middle_trans = [1,1,1]
+    while (first_trans or last_trans or middle_trans):
         t[trial,:] = (np.random.rand(1,t.shape[1]) * data.shape[2])
+        
+        first_trans = (t[trial,0] < min_duration) # Make sure first transition is after min_duration
+        last_trans = (t[trial,-1] + min_duration > data.shape[2]) # Make sure last transition is min_duration before the end
+        middle_trans = np.sum(t[trial,1:] - t[trial,0:-1] < min_duration)  # Make sure there is a distance of min_duration between all intermediate transitions
+   
+        #count +=1
+    print(trial)
+
 t = np.repeat(t[:, :, np.newaxis], data.shape[0], axis=2) # trials x num of transitions (2) x neurons
 t = t + np.random.random(t.shape)*jitter_t
 t = t.astype('int')
-
-state_order = np.asarray([0,1,0]) # use one order for all trials; len = num_transitions + 1
 
 # For every trial, for every neuron, walk through time
 # If time has passed a transition, update transition count and use transitions count
@@ -89,7 +102,7 @@ def raster(data,trans_times,expected_latent_state=None):
     plt.ylabel('Neuron')
 
 # Look at raster for fake data
-for i in range(10):
+for i in range(data.shape[1]):
     plt.figure(i)
     raster(data[:,i,:],t[i,:,:])
 
@@ -102,36 +115,58 @@ for i in range(10):
 #        
 
 # MAP fit with correct number of states in model
-model_MAP_c = hmm_map_fit_multi(data,30,2)
-alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP_c.E_step()
+# =============================================================================
+# model_MAP_c = hmm_map_fit_multi(data,30,2)
+# alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP_c.E_step()
+# 
+# for i in range(data.shape[1]):
+#     plt.figure(i)
+#     raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
+#     plt.savefig('%i_MAP_2st.png' % i)
+#     plt.close(i)
+# 
+# plt.figure()
+# hinton(model_MAP_c.p_transitions.T)
+# plt.savefig('hinton_MAP_2st.png')
+# plt.close()
+# =============================================================================
 
-for i in range(10):#data.shape[1]):
-    plt.figure(i)
-    raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
-
-plt.figure()
-hinton(model_MAP_c.p_transitions.T)
-
-# MAP fit with excess states in model
-model_MAP = hmm_map_fit_multi(data,30,7)
-alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
-
-for i in range(10):#data.shape[1]):
-    plt.figure(i)
-    raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
-
-plt.figure()
-hinton(model_MAP.p_transitions.T)
-
-# Variational Inference HMM fit with excess states in model
-model_VI = hmm_var_fit_multi(data,model_MAP,30,7)
-alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_VI.E_step()
-
-for i in range(10):#data.shape[1]):
-    plt.figure(i)
-    raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
-plt.figure()
-hinton(model_VI.transition_counts)
+for state_num in range(7,8):
+    folder_name = 'var_state_comparison/%i_states' % state_num
+    os.mkdir(folder_name)
+    # MAP fit with excess states in model
+    model_MAP = hmm_map_fit_multi(data,30,state_num)
+    alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
+    
+# =============================================================================
+#     for i in range(data.shape[1]):
+#         plt.figure(i)
+#         raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
+#         plt.savefig('%i_MAP_7st.png' % i)
+#         plt.close(i)
+#         
+#     plt.figure()
+#     hinton(model_MAP.p_transitions.T)
+#     
+#     plt.savefig('hinton_MAP_7st.png')
+#     plt.close()
+# =============================================================================
+    
+    # Variational Inference HMM fit with excess states in model
+    model_VI = hmm_var_fit_multi(data,model_MAP,30,state_num)
+    alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_VI.E_step()
+    
+    for i in range(data.shape[1]):
+        plt.figure()
+        raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
+        plt.savefig(folder_name + '/' + '%i_var_%ist.png' % (i,state_num))
+        plt.close(i)
+    
+    plt.figure()
+    hinton(model_VI.transition_counts)
+    plt.title('ELBO = %f' %model_VI.ELBO[-1])
+    plt.savefig(folder_name + '/' + 'hinton_var_%ist.png' % state_num)
+    plt.close()
 
 
 #           _ _                                  _      _____ _               _    
@@ -143,3 +178,21 @@ hinton(model_VI.transition_counts)
 #                __/ |                                                             
 #               |___/
 #
+# Make plots before and after alignment
+# Unaligned firing
+all_series_unaligned = np.reshape(data,(data.shape[0]*data.shape[1],data.shape[2]))
+sum_firing_unaligned = (np.sum(all_series_unaligned,axis=0))
+
+# Detecting states
+# Look at when each state goes above a certain probability
+# Slope around that point should be positive
+
+# Take cumulative sum of state probability
+# Every timepoint is a n-dim vector (n = number of states) of SLOPE of cumsum
+# Cluster using k-means
+
+for i in range(data.shape[1]):
+    plt.figure()
+    raster(data[:,i,:],t[i,:,:],expected_latent_state[:,i,:])
+    plt.figure()
+    plt.plot(np.cumsum(expected_latent_state[:,i,:],axis=1).T)
