@@ -1,5 +1,3 @@
-# Cast HMM run as a function and use multiprocessing to run on multiple cores
-# Discrete HMMs
 import numpy as np
 import DiscreteHMM
 import variationalHMM
@@ -35,26 +33,16 @@ def hmm_map_fit(binned_spikes,seed,num_states):
     p_start=p_start, transition_pseudocounts=transition_pseudocounts, emission_pseudocounts=emission_pseudocounts, 
     start_pseudocounts=start_pseuedocounts, verbose = 0)
     
-# =============================================================================
-#     alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model.E_step()
-#     converged_val = model.converged
-#     fin_log_lik = model.log_likelihood[-1]
-#     p_transitions = model.p_transitions
-#     p_emissions = model.p_emissions
-#     
-#     del model  
-#     return fin_log_lik, expected_latent_state, p_transitions, p_emissions, converged_val
-# =============================================================================
     return model
+
 
 def hmm_map_fit_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count()):
     pool = mp.Pool(processes = n_cpu)
     results = [pool.apply_async(hmm_map_fit, args = (binned_spikes, seed, num_states)) for seed in range(num_seeds)]
     output = [p.get() for p in results]
-    #pool.close()
-    #pool.join()  
+    pool.close()
+    pool.join()  
     
-    #log_probs = [output[i][1] for i in range(len(output))]
     log_probs = [output[i].log_likelihood[-1] for i in range(len(output))]
     maximum_pos = np.where(log_probs == np.max(log_probs))[0][0]
     fin_out = output[maximum_pos]
@@ -67,6 +55,9 @@ def hmm_map_fit_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count())
 #    \  / (_| | |  | | (_| | |_| | (_) | | | | (_| | |
 #     \/ \__,_|_|  |_|\__,_|\__|_|\___/|_| |_|\__,_|_|
 #
+
+# binned_trial = neurons x trials x time
+# intial_model = output model from hmm_map_fit
 def hmm_var_fit(binned_spikes,initial_model,seed,num_states):
     
     np.random.seed(seed)
@@ -89,12 +80,10 @@ def hmm_var_fit_multi(binned_spikes,initial_model,num_seeds,num_states,n_cpu = m
     pool = mp.Pool(processes = n_cpu)
     results = [pool.apply_async(hmm_var_fit, args = (binned_spikes, initial_model, seed, num_states)) for seed in range(num_seeds)]
     output = [p.get() for p in results]
-    #pool.close()
-    #pool.join()  
+    pool.close()
+    pool.join()  
     
-    #log_probs = [output[i][1] for i in range(len(output))]
     elbo = [output[i].ELBO[-1] for i in range(len(output))]
-    #maximum_pos = np.where(elbo == np.max(elbo))[0][0]
     maximum_pos = np.where(elbo == np.max(elbo))[0][0]
     fin_out = output[maximum_pos]
     return fin_out                                                   
