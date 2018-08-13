@@ -15,7 +15,7 @@ import multiprocessing as mp
 def hmm_map_fit(binned_spikes,seed,num_states):
     np.random.seed(seed)
     model = DiscreteHMM.IndependentBernoulliHMM(num_states = num_states, num_emissions = binned_spikes.shape[0], 
-    max_iter = 1000, threshold = 1e-9)
+    max_iter = 2000, threshold = 1e-6)
 
     # Define probabilities and pseudocounts
     p_transitions = np.abs(np.eye(num_states) - np.random.rand(num_states,num_states)*0.05) #(num_states X num_states)
@@ -62,7 +62,7 @@ def hmm_var_fit(binned_spikes,initial_model,seed,num_states):
     
     np.random.seed(seed)
     model_VI = variationalHMM.IndependentBernoulliHMM(num_states = num_states, num_emissions = binned_spikes.shape[0], 
-    max_iter = 1000, threshold = 1e-9)
+    max_iter = 2000, threshold = 1e-6)
 
     # Define probabilities and pseudocounts
     p_emissions_bernoulli = np.zeros((model_VI.num_states, binned_spikes.shape[0], 2))

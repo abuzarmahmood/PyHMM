@@ -2,14 +2,22 @@
 # Define model, Fit HMM
 # 
 
-# Import stuff# Impor 
+# Import stuff
+
 import numpy as np
-import DiscreteHMM
 import pylab as plt
 import matplotlib
 import tables
 import os
 import shutil
+
+os.chdir('/media/bigdata/PyHMM/PyHMM/')
+import DiscreteHMM
+from hmm_fit_funcs import *
+from align_trials import *
+from hinton import hinton
+from fake_firing import raster
+
 
 
 
@@ -24,12 +32,17 @@ import shutil
 #
 
 # Read blech.dir, and cd to that directory
-f = open('blech.dir', 'r')
-dir_name = []
-for line in f.readlines():
-	dir_name.append(line)
-f.close()
-os.chdir(dir_name[0][:-1])
+# =============================================================================
+# f = open('blech.dir', 'r')
+# dir_name = []
+# for line in f.readlines():
+# 	dir_name.append(line)
+# f.close()
+# os.chdir(dir_name[0][:-1])
+# =============================================================================
+data_dir = '/media/bigdata/jian_you_data/var_hmm_test/'
+os.chdir(data_dir)
+
 
 # Get the names of all files in the current directory, and find the .params and hdf5 (.h5) file
 file_list = os.listdir('./')
@@ -57,13 +70,10 @@ max_states = int(params[1])
 max_iterations = int(params[2])
 threshold = float(params[3])
 seeds = int(params[4])
-edge_inertia = float(params[5])
-dist_inertia = float(params[6])
-#taste = int(params[7])
-pre_stim = int(params[8])
-bin_size = int(params[9])
-pre_stim_hmm = int(params[10])
-post_stim_hmm = int(params[11])
+#taste = int(params[5])
+start_t = int(params[6])
+end_t = int(params[7])
+bin_size = int(params[8])
 
 # Read the chosen units
 f = open(units_file, 'r')
@@ -84,7 +94,7 @@ for taste in range(4):
     exec('spikes.append(hf5.root.spike_trains.dig_in_%i.spike_array[:])' % taste)
         
     # Slice out the required portion of the spike array, and bin it
-    spikes[taste] = spikes[taste][:, chosen_units , pre_stim - pre_stim_hmm:pre_stim + post_stim_hmm]
+    spikes[taste] = spikes[taste][:, chosen_units , start_t:end_t]
     
     
     exec('dig_in = hf5.root.spike_trains.dig_in_%i' % taste)
@@ -97,7 +107,7 @@ for taste in range(4):
     off_trials = np.where(dig_in.laser_durations[:] == 0.0)[0]
     
     # Bin spikes (might decrease info for fast spiking neurons)
-    binned_spikes = np.zeros((spikes[taste].shape[0],spikes[taste].shape[1], int((pre_stim_hmm + post_stim_hmm)/bin_size)))
+    binned_spikes = np.zeros((spikes[taste].shape[0],spikes[taste].shape[1], int((end_t - start_t)/bin_size)))
     time = []
     for i in range(spikes[taste].shape[0]):
         for j in range(spikes[taste].shape[1]):
@@ -107,9 +117,15 @@ for taste in range(4):
                     
     # Data must be recast into (neurons X trials X time) before it is fit
     dat_shape = (binned_spikes.shape[1],binned_spikes.shape[0],binned_spikes.shape[2])
-    binned_spikes_re = binned_spikes.reshape(dat_shape)
+    #binned_spikes_re = binned_spikes.reshape(dat_shape)
+    binned_spikes_re = np.swapaxes(binned_spikes,0,1)
     off_spikes.append(binned_spikes_re[:,off_trials,:])
     on_spikes.append(binned_spikes_re[:,on_trials,:])
+    
+for taste in [0]:#range(len(off_spikes)):
+    for trial in range(off_spikes[0].shape[1]):
+        plt.figure()
+        raster(off_spikes[taste][:,trial,:])
 
 #  ______ _ _     __  __           _      _ 
 # |  ____(_) |   |  \/  |         | |    | |
@@ -119,147 +135,64 @@ for taste in range(4):
 # |_|    |_|\__| |_|  |_|\___/ \__,_|\___|_|
 #
 
-# =============================================================================
-# num_states = 3
-# seeds = 10
-# best_log_lik = 0
-# 
-# for seed in range(seeds):
-#     
-#     np.random.seed(seed)
-#     model = DiscreteHMM.IndependentBernoulliHMM(num_states = num_states, num_emissions = binned_spikes.shape[1], 
-#     max_iter = 1000, threshold = 1e-9)
-#     
-#     # Define probabilities and pseudocounts
-#     p_transitions = np.abs(np.eye(num_states) - np.random.rand(num_states,num_states)*0.05) #(num_states X num_states)
-#     p_emissions = np.random.random(size=(num_states, binned_spikes.shape[1])) #(num_states X num_emissions)
-#     p_start = np.random.random(num_states) #(num_states)
-#     start_pseuedocounts = np.ones(num_states) #(num_states)
-#     transition_pseudocounts = np.abs(np.eye(num_states)*1500 - np.random.rand(num_states,num_states)*1500*0.05) #(num_states X num_states)
-#     
-#     # Emission pseudocounts : Average count of a neuron/trial, on and off in same ratio as firing probability 
-#     avg_firing_p = np.tile(np.mean(binned_spikes,axis = (0,2)),(num_states,1))
-#     avg_off_p = np.tile(np.ones((1,binned_spikes.shape[1])) - np.mean(binned_spikes,axis = (0,2)), (num_states,1))
-#     emission_pseudocounts =  np.dstack((avg_firing_p,avg_off_p))*150 #(num_states X num_emissions X 2)
-#     
-#     model.fit(data=binned_spikes_re, p_transitions=p_transitions, p_emissions=p_emissions, 
-#               p_start=p_start, transition_pseudocounts=transition_pseudocounts, emission_pseudocounts=emission_pseudocounts, 
-#               start_pseudocounts=start_pseuedocounts, verbose = 0)
-#     
-#     current_log_lik = model.log_likelihood[-1] 
-#     print(current_log_lik)
-#     
-#     if best_log_lik == 0:
-#         best_log_lik = current_log_lik
-#         best_model = model
-#     elif current_log_lik < best_log_lik:
-#         best_log_lik = current_log_lik
-#         best_model = model
-#     
-# alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = best_model.E_step()
-# =============================================================================
+seed_num = 30
 
-#  _____  _       _     _____        _        
-# |  __ \| |     | |   |  __ \      | |       
-# | |__) | | ___ | |_  | |  | | __ _| |_ __ _ 
-# |  ___/| |/ _ \| __| | |  | |/ _` | __/ _` |
-# | |    | | (_) | |_  | |__| | (_| | || (_| |
-# |_|    |_|\___/ \__| |_____/ \__,_|\__\__,_|
-#
-# Define a function to plot data so that it can be called from inside a loop
-# Function takes entire processed data and outputs plots
+# Off trials
+cond_dir = 'off'
 
-#plt.plot(range(0,int(binned_spikes.shape[2])*bin_size,bin_size),expected_latent_state[:, 0, :].T)
-# Add more arguments, I dare you -_-
+if os.path.isdir(cond_dir):
+    shutil.rmtree(cond_dir)
+os.mkdir(cond_dir)
+os.chdir(data_dir + cond_dir)
 
-def plot_figs(binned_spikes, spikes, bin_size, expected_latent_state,chosen_units, taste_num, states_num, laser):
-    
-    try:
-        os.makedirs('HMM_plots/%s/dig_in_%i/states_%i' % (laser,taste_num, states_num))
-    except:
-        shutil.rmtree('HMM_plots/%s/dig_in_%i/states_%i' % (laser,taste_num, states_num))
-        os.makedirs('HMM_plots/%s/dig_in_%i/states_%i' % (laser,taste_num, states_num))
-    
-    for i in range(binned_spikes.shape[1]):
-        fig = plt.figure()
-        plt.plot(range(0,int(binned_spikes.shape[2])*bin_size,bin_size),expected_latent_state[:, i, :].T*len(chosen_units))
-        for unit in range(len(chosen_units)):
-            for j in range(spikes.shape[2]):
-                if spikes[i, unit, j] > 0:
-                    plt.vlines(j - pre_stim_hmm, unit, unit + 0.5, linewidth = 0.5)
-        plt.xlabel('Time post stimulus (ms)')
-        plt.ylabel('Probability of HMM states')
-        plt.title('Trial %i' % (i+1))
-        fig.savefig('HMM_plots/%s/dig_in_%i/states_%i/Trial_%i.png' % (laser,taste_num, states_num, (i+1)))
-        plt.close("all")
-
-
-#  _____                _ _      _ _          _   _                       _   _                       _   
-# |  __ \              | | |    | (_)        | | (_)                 /\  | | | |                     | |  
-# | |__) |_ _ _ __ __ _| | | ___| |_ ______ _| |_ _  ___  _ __      /  \ | |_| |_ ___ _ __ ___  _ __ | |_ 
-# |  ___/ _` | '__/ _` | | |/ _ \ | |_  / _` | __| |/ _ \| '_ \    / /\ \| __| __/ _ \ '_ ` _ \| '_ \| __|
-# | |  | (_| | | | (_| | | |  __/ | |/ / (_| | |_| | (_) | | | |  / ____ \ |_| ||  __/ | | | | | |_) | |_ 
-# |_|   \__,_|_|  \__,_|_|_|\___|_|_/___\__,_|\__|_|\___/|_| |_| /_/    \_\__|\__\___|_| |_| |_| .__/ \__|
-#                                                                                              | |        
-#                                                                                              |_|
-
-# Cast HMM run as a function and use multiprocessing to run on multiple cores
-
-def hmm_fit(binned_spikes,seed,num_states):
-    np.random.seed(seed)
-    model = DiscreteHMM.IndependentBernoulliHMM(num_states = num_states, num_emissions = binned_spikes.shape[0], 
-    max_iter = 1000, threshold = 1e-9)
-
-    # Define probabilities and pseudocounts
-    p_transitions = np.abs(np.eye(num_states) - np.random.rand(num_states,num_states)*0.05) #(num_states X num_states)
-    p_emissions = np.random.random(size=(num_states, binned_spikes.shape[0])) #(num_states X num_emissions)
-    p_start = np.random.random(num_states) #(num_states)
-    start_pseuedocounts = np.ones(num_states) #(num_states)
-    transition_pseudocounts = np.abs(np.eye(num_states)*1500 - np.random.rand(num_states,num_states)*1500*0.05) #(num_states X num_states)
-    
-    # Emission pseudocounts : Average count of a neuron/trial, on and off in same ratio as firing probability 
-    avg_firing_p = np.tile(np.mean(binned_spikes,axis = (1,2)),(num_states,1)) #(states X num_emissions)
-    avg_off_p = np.tile(np.ones((1,binned_spikes.shape[0])) - np.mean(binned_spikes,axis = (1,2)), (num_states,1)) #(states X num_emissions)
-    emission_pseudocounts =  np.dstack((avg_firing_p,avg_off_p))*150 #(num_states X num_emissions X 2)
-    
-    model.fit(data=binned_spikes, p_transitions=p_transitions, p_emissions=p_emissions, 
-    p_start=p_start, transition_pseudocounts=transition_pseudocounts, emission_pseudocounts=emission_pseudocounts, 
-    start_pseudocounts=start_pseuedocounts, verbose = 0)
-    
-    alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model.E_step()
-    
-    return model.log_likelihood[-1], expected_latent_state, model.converged
-    
-################################################
-
-import multiprocessing as mp
-
-num_states = range(3,8)
-num_seeds = 100
-n_cpu = int(sys.argv[1])
-
-### OFF ###
-for taste in range(4):
-    for states in num_states:
-        pool = mp.Pool(processes = n_cpu)
-        results = [pool.apply_async(hmm_fit, args = (off_spikes[taste], seed, states)) for seed in range(seeds)]
-        output = [p.get() for p in results]
+for model_num_states in range(min_states,max_states+1):
+    for taste in range(len(off_spikes)):
         
-        log_probs = [output[i][1] for i in range(len(output))]
-        maximum_pos = np.where(log_probs == np.max(log_probs))[0][0]
-        fin_out = output[maximum_pos]
-    
-        plot_figs(off_spikes[taste],spikes[taste],10,fin_out[1],chosen_units,taste,states,'off')
+        folder_name = 'taste_%i/%i_states' % (taste,model_num_states)
+        if os.path.isdir(folder_name):
+            shutil.rmtree(folder_name)
+        os.makedirs(folder_name)
         
-### ON ###
-for taste in range(4):
-    for states in num_states:
-        pool = mp.Pool(processes = n_cpu)
-        results = [pool.apply_async(hmm_fit, args = (on_spikes[taste], seed, states)) for seed in range(seeds)]
-        output = [p.get() for p in results]
+        data = off_spikes[taste]
         
-        log_probs = [output[i][1] for i in range(len(output))]
-        maximum_pos = np.where(log_probs == np.max(log_probs))[0][0]
-        fin_out = output[maximum_pos]
-    
-        plot_figs(off_spikes[taste],spikes[taste],10,fin_out[1],chosen_units,taste,states,'on')
+        # MAP HMM 
+        model_MAP = hmm_map_fit_multi(data,seed_num,model_num_states)
+        #alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
+        
+        # Variational Inference HMM
+        model_VI = hmm_var_fit_multi(data,model_MAP,seed_num,model_num_states)
+        alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_VI.E_step()
+        
+        # Save figures in appropriate directories
+        for i in range(data.shape[1]):
+            plt.figure()
+            raster(data = data[:,i,:],expected_latent_state = expected_latent_state[:,i,:])
+            plt.savefig(folder_name + '/' + '%i_var_%ist.png' % (i,model_num_states))
+            plt.close(i)
+        
+        plt.figure()
+        hinton(model_VI.transition_counts)
+        plt.title('ELBO = %f' %model_VI.ELBO[-1])
+        plt.savefig(folder_name + '/' + 'hinton_var_%ist.png' % model_num_states)
+        plt.close()
+        
+        # Save data in appropriate spots in HDF5 file
+        node_name = '/var_hmm/taste_%i/%i_states' % (taste,model_num_states)
+        
+        try:
+            hf5.remove_node(node_name,recursive =  True)
+        except:
+            pass
+        
+        hf5.create_group('/var_hmm/taste_%i' % taste, '%i_states' % model_num_states,createparents=True)
+        
+        hf5.create_array(node_name,'expected_latent_state',expected_latent_state)
+        hf5.create_array(node_name,'ELBO',model_VI.ELBO[-1])
+        hf5.create_array(node_name,'p_transitions',model_VI.p_transitions)
+        hf5.create_array(node_name,'p_emissions',model_VI.p_emissions)
+        hf5.flush()
+            
+
+# On trials
+
+
