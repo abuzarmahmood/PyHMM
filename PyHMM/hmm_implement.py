@@ -18,7 +18,7 @@ from align_trials import *
 from hinton import hinton
 from fake_firing import raster
 
-
+plt.ioff() # Prevent plots from showing
 
 
 #  _                     _             _ _    _                   _       _        
@@ -135,7 +135,7 @@ for taste in [0]:#range(len(off_spikes)):
 # |_|    |_|\__| |_|  |_|\___/ \__,_|\___|_|
 #
 
-seed_num = 30
+seed_num = 50
 
 # Off trials
 cond_dir = 'off'
@@ -173,6 +173,7 @@ for model_num_states in range(min_states,max_states+1):
         plt.figure()
         hinton(model_VI.transition_counts)
         plt.title('ELBO = %f' %model_VI.ELBO[-1])
+        plt.suptitle('Model converged = ' + str(model_VI.converged))
         plt.savefig(folder_name + '/' + 'hinton_var_%ist.png' % model_num_states)
         plt.close()
         
@@ -190,6 +191,7 @@ for model_num_states in range(min_states,max_states+1):
         hf5.create_array(node_name,'ELBO',model_VI.ELBO[-1])
         hf5.create_array(node_name,'p_transitions',model_VI.p_transitions)
         hf5.create_array(node_name,'p_emissions',model_VI.p_emissions)
+        hf5.create_array(node_name,'model_converged_val',str(model_VI.converged))
         hf5.flush()
             
 
