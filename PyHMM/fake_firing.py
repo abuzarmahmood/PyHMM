@@ -10,13 +10,36 @@
 import numpy as np
 import pylab as plt
 
-                                             
+###############
+# CATEGORICAL #
+###############
+def fake_ber_firing(nrns,trials,length,num_states,state_order,ceil_p,jitter_t,min_duration):
+    # nrns = number of neurons (emissions)
+    # trials = number of trials
+    # length = number of bins for data
+    # state_order = LIST: fixed order for states
+    # ceil_p = maximum firing probability
+    # jitter_t = max amount of jitter between neurons for a state transition
+    # min_duration =    time between start and first transition
+    #                   time between final state and end
+    #                   time between intermediate state transitions
+    
+    
+    # Returns data array, transition times, emission probabilities
+    data = np.zeros((nrns, trials, length)) # neurons x trials x time
+    
+    # Emission probabilities of neurons for every state
+    p = np.random.rand(num_states, data.shape[0])*ceil_p # states x neuron
+      
+#############
+# BERNOULLI #
+#############                                       
 # Bernoulli trials with arbitrary numbers of states and transitions (upto constraints)
 # Firing probability random for each neuron (upto a ceiling)
 # Transitions random with some min durations
 # Jitter between individual neuron state transtiions
     
-def fake_firing(nrns,trials,length,num_states,state_order,ceil_p,jitter_t,min_duration):
+def fake_ber_firing(nrns,trials,length,num_states,state_order,ceil_p,jitter_t,min_duration):
     # nrns = number of neurons (emissions)
     # trials = number of trials
     # length = number of bins for data

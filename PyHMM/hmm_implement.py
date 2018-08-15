@@ -18,7 +18,7 @@ from align_trials import *
 from hinton import hinton
 from fake_firing import raster
 
-plt.ioff() # Prevent plots from showing
+#plt.ioff() # Prevent plots from showing
 
 
 #  _                     _             _ _    _                   _       _        
@@ -122,10 +122,12 @@ for taste in range(4):
     off_spikes.append(binned_spikes_re[:,off_trials,:])
     on_spikes.append(binned_spikes_re[:,on_trials,:])
     
-for taste in [0]:#range(len(off_spikes)):
-    for trial in range(off_spikes[0].shape[1]):
-        plt.figure()
-        raster(off_spikes[taste][:,trial,:])
+# =============================================================================
+# for taste in [0]:#range(len(off_spikes)):
+#     for trial in range(off_spikes[0].shape[1]):
+#         plt.figure()
+#         raster(off_spikes[taste][:,trial,:])
+# =============================================================================
 
 #  ______ _ _     __  __           _      _ 
 # |  ____(_) |   |  \/  |         | |    | |
@@ -156,7 +158,7 @@ for model_num_states in range(min_states,max_states+1):
         data = off_spikes[taste]
         
         # Variational Inference HMM
-        model_VI = hmm_var_fit_multi(data,model_MAP,seed_num,model_num_states)
+        model_VI = hmm_var_fit_multi(data,seed_num,model_num_states)
         alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_VI.E_step()
         
         # Save figures in appropriate directories
