@@ -40,7 +40,7 @@ plt.ioff() # Prevent plots from showing
 # f.close()
 # os.chdir(dir_name[0][:-1])
 # =============================================================================
-data_dir = '/media/bigdata/jian_you_data/var_hmm_test/'
+data_dir = '/media/bigdata/jian_you_data/var_hmm_test/file_1/'
 os.chdir(data_dir)
 
 
@@ -135,7 +135,7 @@ for taste in [0]:#range(len(off_spikes)):
 # |_|    |_|\__| |_|  |_|\___/ \__,_|\___|_|
 #
 
-seed_num = 50
+seed_num = 100
 
 # Off trials
 cond_dir = 'off'
@@ -154,10 +154,6 @@ for model_num_states in range(min_states,max_states+1):
         os.makedirs(folder_name)
         
         data = off_spikes[taste]
-        
-        # MAP HMM 
-        model_MAP = hmm_map_fit_multi(data,seed_num,model_num_states)
-        #alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
         
         # Variational Inference HMM
         model_VI = hmm_var_fit_multi(data,model_MAP,seed_num,model_num_states)
@@ -191,10 +187,8 @@ for model_num_states in range(min_states,max_states+1):
         hf5.create_array(node_name,'ELBO',model_VI.ELBO[-1])
         hf5.create_array(node_name,'p_transitions',model_VI.p_transitions)
         hf5.create_array(node_name,'p_emissions',model_VI.p_emissions)
-        hf5.create_array(node_name,'model_converged_val',str(model_VI.converged))
+        hf5.create_array(node_name,'model_converged_val',model_VI.converged*1)
         hf5.flush()
             
 
 # On trials
-
-

@@ -58,9 +58,10 @@ def hmm_map_fit_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count())
 
 # binned_trial = neurons x trials x time
 # intial_model = output model from hmm_map_fit
-def hmm_var_fit(binned_spikes,initial_model,seed,num_states):
+def hmm_var_fit(binned_spikes,seed,num_states):
     
     np.random.seed(seed)
+    initial_model = hmm_map_fit(binned_spikes,seed,num_states)
     model_VI = variationalHMM.IndependentBernoulliHMM(num_states = num_states, num_emissions = binned_spikes.shape[0], 
     max_iter = 2000, threshold = 1e-6)
 
@@ -73,7 +74,7 @@ def hmm_var_fit(binned_spikes,initial_model,seed,num_states):
           initial_transition_counts = 30*initial_model.p_transitions, initial_emission_counts = 30*p_emissions_bernoulli,
             initial_start_counts = 2*initial_model.p_start, update_hyperpriors = True, update_hyperpriors_iter = 1,
             verbose = False)
-
+    
     return model_VI
 
 def hmm_var_fit_multi(binned_spikes,initial_model,num_seeds,num_states,n_cpu = mp.cpu_count()):
