@@ -108,19 +108,43 @@ for taste in range(4):
     
     # Bin spikes (might decrease info for fast spiking neurons)
     binned_spikes = np.zeros((spikes[taste].shape[0],spikes[taste].shape[1], int((end_t - start_t)/bin_size)))
-    time = []
-    for i in range(spikes[taste].shape[0]):
-        for j in range(spikes[taste].shape[1]):
-            for k in range(binned_spikes.shape[2]):
+    for i in range(spikes[taste].shape[0]): # Loop over trials
+        for j in range(spikes[taste].shape[1]): # Loop over neurons
+            for k in range(binned_spikes.shape[2]): # Loop over time
                 if (np.sum(spikes[taste][i, j, k*bin_size:(k+1)*bin_size]) > 0):
-                    binned_spikes[i,j,k] = 1 
-                    
-    # Data must be recast into (neurons X trials X time) before it is fit
-    dat_shape = (binned_spikes.shape[1],binned_spikes.shape[0],binned_spikes.shape[2])
-    #binned_spikes_re = binned_spikes.reshape(dat_shape)
-    binned_spikes_re = np.swapaxes(binned_spikes,0,1)
-    off_spikes.append(binned_spikes_re[:,off_trials,:])
-    on_spikes.append(binned_spikes_re[:,on_trials,:])
+                    binned_spikes[i,j,k] = 1
+                
+######### For categorical HMM ########  
+    # Remove multiple spikes in same time bin (for categorical HMM)
+    for i in range(spikes[taste].shape[0]): # Loop over trials
+        for k in range(binned_spikes.shape[2]): # Loop over time
+            n_firing_units = np.where(binned_spikes[i,:,k] > 0)[0]
+            if len(n_firing_units)>0:
+                binned_spikes[i,:,k] = 0
+                binned_spikes[i,np.random.choice(n_firing_units),k] = 1
+    
+    # Convert bernoulli trials to categorical data        
+    cat_binned_spikes = np.zeros((binned_spikes.shape[0],binned_spikes.shape[2]))
+    for i in range(cat_binned_spikes.shape[0]):
+        for j in range(cat_binned_spikes.shape[1]):
+            firing_unit = np.where(binned_spikes[i,:,j] > 0)[0]
+            if firing_unit.size > 0:
+                cat_binned_spikes[i,j] = firing_unit + 1
+                
+    off_spikes.append(cat_binned_spikes[off_trials,:])
+    on_spikes.append(cat_binned_spikes[on_trials,:])
+    
+########################################
+                
+    
+    
+# =============================================================================
+#     # Data must be recast into (neurons X trials X time) before it is fit
+#     dat_shape = (binned_spikes.shape[1],binned_spikes.shape[0],binned_spikes.shape[2])
+#     binned_spikes_re = np.swapaxes(binned_spikes,0,1)
+#     off_spikes.append(binned_spikes_re[:,off_trials,:])
+#     on_spikes.append(binned_spikes_re[:,on_trials,:])
+# =============================================================================
     
 # =============================================================================
 # for taste in [0]:#range(len(off_spikes)):
@@ -137,7 +161,7 @@ for taste in range(4):
 # |_|    |_|\__| |_|  |_|\___/ \__,_|\___|_|
 #
 
-seed_num = 100
+seed_num = 30
 
 # Off trials
 cond_dir = 'off'
@@ -158,7 +182,7 @@ for model_num_states in range(min_states,max_states+1):
         data = off_spikes[taste]
         
         # Variational Inference HMM
-        model_VI = hmm_var_fit_multi(data,seed_num,model_num_states)
+        model_VI = hmm_cat_var_multi(data,seed_num,model_num_states)
         alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_VI.E_step()
         
         # Save figures in appropriate directories

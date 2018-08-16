@@ -13,7 +13,7 @@ import pylab as plt
 ###############
 # CATEGORICAL #
 ###############
-def fake_ber_firing(nrns,trials,length,num_states,state_order,ceil_p,jitter_t,min_duration):
+def fake_cat_firing(nrns,trials,length,num_states,state_order,ceil_p,jitter_t,min_duration):
     # nrns = number of neurons (emissions)
     # trials = number of trials
     # length = number of bins for data
@@ -95,10 +95,12 @@ def fake_ber_firing(nrns,trials,length,num_states,state_order,ceil_p,jitter_t,mi
 
 # Raster plot
 def raster(data,trans_times=None,expected_latent_state=None):
-    # Take two 2D arrays: 
+    #If bernoulli data, take three 2D arrays: 
         # data : neurons x time
         # trans_times : num_transition x neurons
         # expected_latent_state: states x time
+    # If categorical data, take one 1D array
+        # data : time (where each element indicates which neuron fired)
     # Red lines indicate mean transition times
     # Yellow ticks indicate individual neuron transition times
     
@@ -112,11 +114,16 @@ def raster(data,trans_times=None,expected_latent_state=None):
             for transition in range(trans_times.shape[0]):
                 plt.vlines(trans_times[transition,unit], unit, unit+0.5, linewidth = 3, color = 'y')
     
-    # Plot spikes         
-    for unit in range(data.shape[0]):
-        for time in range(data.shape[1]):
-            if data[unit, time] > 0:
-                plt.vlines(time, unit, unit + 0.5, linewidth = 0.5)
+    # Plot spikes  
+    if data.ndim > 1:       
+        for unit in range(data.shape[0]):
+            for time in range(data.shape[1]):
+                if data[unit, time] > 0:
+                    plt.vlines(time, unit, unit + 0.5, linewidth = 0.5)
+    else:
+       for time in range(data.shape[0]):
+           if data[time] > 0:
+               plt.vlines(time, data[time], data[time] + 0.5, linewidth = 0.5) 
     
     # Plot mean transition times         
     if trans_times is not None:
