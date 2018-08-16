@@ -29,10 +29,12 @@ def hmm_cat_map(binned_spikes,seed,num_states):
     transition_pseudocounts = np.abs(np.eye(num_states)*binned_spikes.shape[1] - np.random.rand(num_states,num_states)*binned_spikes.shape[1]*0.05) #(num_states X num_states)
     
     # Emission pseudocounts : Average count of a neuron/trial, on and off in same ratio as firing probability 
-    avg_firing = np.zeros(np.unique(binned_spikes).size-1)
-    for i in range(avg_firing.size)+1:
-        avg_firing[i-1] = np.sum(binned_spikes == i) #(states X num_emissions)
+    nonzero_vals = binned_spikes[np.nonzero(binned_spikes)] # Take out zeros for calculation
+    avg_firing = np.zeros(np.unique(nonzero_vals).size)
+    for i in range(avg_firing.size):
+        avg_firing[i] = np.sum(binned_spikes == np.unique(nonzero_vals)[i]) #(states X num_emissions)
     emission_pseudocounts =  np.tile(avg_firing_p*mean_firing, (num_states,1)) #(num_states X num_emissions)
+    # Average firing probability should be multiplied by the mean_firing DURING ONE TRIAL
     
     model.fit(data=binned_spikes, p_transitions=p_transitions, p_emissions=p_emissions, 
     p_start=p_start, transition_pseudocounts=transition_pseudocounts, emission_pseudocounts=emission_pseudocounts, 
@@ -73,6 +75,7 @@ def hmm_ber_map(binned_spikes,seed,num_states):
     avg_firing_p = np.tile(np.mean(binned_spikes,axis = (1,2)),(num_states,1)) #(states X num_emissions)
     avg_off_p = np.tile(np.ones((1,binned_spikes.shape[0])) - np.mean(binned_spikes,axis = (1,2)), (num_states,1)) #(states X num_emissions)
     emission_pseudocounts =  np.dstack((avg_firing_p,avg_off_p))*mean_firing #(num_states X num_emissions X 2)
+    # I don't think this is mean firing across one trial, this seams like mean firing across ALL TRIALS --> MAKE SURE
     
     model.fit(data=binned_spikes, p_transitions=p_transitions, p_emissions=p_emissions, 
     p_start=p_start, transition_pseudocounts=transition_pseudocounts, emission_pseudocounts=emission_pseudocounts, 
