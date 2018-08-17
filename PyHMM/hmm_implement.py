@@ -161,7 +161,7 @@ for taste in range(4):
 # |_|    |_|\__| |_|  |_|\___/ \__,_|\___|_|
 #
 
-seed_num = 30
+seed_num = 100
 
 # Off trials
 cond_dir = 'off'
@@ -188,7 +188,7 @@ for model_num_states in range(min_states,max_states+1):
         # Save figures in appropriate directories
         for i in range(data.shape[1]):
             plt.figure()
-            raster(data = data[:,i,:],expected_latent_state = expected_latent_state[:,i,:])
+            raster(data = data[i,:],expected_latent_state = expected_latent_state[:,i,:])
             plt.savefig(folder_name + '/' + '%i_var_%ist.png' % (i,model_num_states))
             plt.close(i)
         

@@ -29,12 +29,11 @@ def hmm_cat_map(binned_spikes,seed,num_states):
     transition_pseudocounts = np.abs(np.eye(num_states)*binned_spikes.shape[1] - np.random.rand(num_states,num_states)*binned_spikes.shape[1]*0.05) #(num_states X num_states)
     
     # Emission pseudocounts : Average count of a neuron/trial, on and off in same ratio as firing probability 
-    nonzero_vals = binned_spikes[np.nonzero(binned_spikes)] # Take out zeros for calculation
-    avg_firing = np.zeros(np.unique(nonzero_vals).size)
-    for i in range(avg_firing.size):
-        avg_firing[i] = np.sum(binned_spikes == np.unique(nonzero_vals)[i]) #(states X num_emissions)
-    emission_pseudocounts =  np.tile(avg_firing_p*mean_firing, (num_states,1)) #(num_states X num_emissions)
     # Average firing probability should be multiplied by the mean_firing DURING ONE TRIAL
+    avg_firing = np.zeros(n_emissions)
+    for i in range(avg_firing.size):
+        avg_firing[i] = np.sum(binned_spikes == i) #(states X num_emissions)
+    emission_pseudocounts =  np.tile(avg_firing/binned_spikes.shape[0], (num_states,1)) #(num_states X num_emissions)
     
     model.fit(data=binned_spikes, p_transitions=p_transitions, p_emissions=p_emissions, 
     p_start=p_start, transition_pseudocounts=transition_pseudocounts, emission_pseudocounts=emission_pseudocounts, 
@@ -117,13 +116,13 @@ def hmm_ber_map_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count())
 def hmm_cat_var(binned_spikes,seed,num_states):
     
     initial_model = hmm_cat_map(binned_spikes,seed,num_states)
-    model_VI = variationalHMM.CategoricalHMM(num_states = num_states, num_emissions = binned_spikes.shape[0], 
+    model_VI = variationalHMM.CategoricalHMM(num_states = num_states, num_emissions = np.unique(binned_spikes).size, 
     max_iter = 2000, threshold = 1e-6)
   
     model_VI.fit(data = binned_spikes, transition_hyperprior = 1, emission_hyperprior = 1, start_hyperprior = 1, 
-          initial_transition_counts = binned_spikes.shape[2]*initial_model.p_transitions, initial_emission_counts = binned_spikes.shape[2]*p_emissions_bernoulli,
-            initial_start_counts = binned_spikes.shape[0]*initial_model.p_start, update_hyperpriors = True, update_hyperpriors_iter = 10,
-            verbose = False)
+          initial_transition_counts = binned_spikes.shape[1]*initial_model.p_transitions, initial_emission_counts = binned_spikes.shape[1]*initial_model.p_emissions,
+            initial_start_counts = np.unique(binned_spikes).size*initial_model.p_start, update_hyperpriors = True, update_hyperpriors_iter = 10,
+            verbose = 0)
     
     return model_VI
 
