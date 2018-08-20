@@ -147,7 +147,8 @@ def hmm_cat_var(binned_spikes,seed,num_states,scale=0.1):
             update_hyperpriors_iter = 10,
             verbose = 0)
     
-    return model_VI
+    return model_VI, initial_model # This way it can evaluate both best VI model and best MAP
+                                    # model in the same run
 
 def hmm_cat_var_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count()):
     pool = mp.Pool(processes = n_cpu)
@@ -156,10 +157,17 @@ def hmm_cat_var_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count())
     pool.close()
     pool.join()  
     
-    elbo = [output[i].ELBO[-1] for i in range(len(output))]
-    maximum_pos = np.where(elbo == np.max(elbo))[0][0]
-    fin_out = output[maximum_pos]
-    return fin_out   
+    # Best VI model
+    elbo = [output[i][0].ELBO[-1] for i in range(len(output))]
+    maximum_VI_pos = np.where(elbo == np.max(elbo))[0][0]
+    fin_VI_out = output[maximum_VI_pos]
+    
+    # Best MAP model
+    log_probs = [output[i][1].log_likelihood[-1] for i in range(len(output))]
+    maximum_MAP_pos = np.where(log_probs == np.max(log_probs))[0][0]
+    fin_MAP_out = output[maximum_MAP_pos]    
+    
+    return fin_VI_out, fin_MAP_out   
    
 #############
 # BERNOULLI #
