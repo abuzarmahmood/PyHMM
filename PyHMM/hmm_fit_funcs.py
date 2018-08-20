@@ -61,7 +61,7 @@ def hmm_cat_map_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count())
     pool.close()
     pool.join()  
     
-    log_probs = [output[i].log_likelihood[-1] for i in range(len(output))]
+    log_probs = [output[i].log_posterior[-1] for i in range(len(output))]
     maximum_pos = np.where(log_probs == np.max(log_probs))[0][0]
     fin_out = output[maximum_pos]
     return fin_out
@@ -114,7 +114,7 @@ def hmm_ber_map_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count())
     pool.close()
     pool.join()  
     
-    log_probs = [output[i].log_likelihood[-1] for i in range(len(output))]
+    log_probs = [output[i].log_posterior[-1] for i in range(len(output))]
     maximum_pos = np.where(log_probs == np.max(log_probs))[0][0]
     fin_out = output[maximum_pos]
     return fin_out
@@ -175,7 +175,7 @@ def hmm_cat_var_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count())
     fin_VI_out = output[maximum_VI_pos]
     
     # Best MAP model
-    log_probs = [output[i][1].log_likelihood[-1] for i in range(len(output))]
+    log_probs = [output[i][1].log_posterior[-1] for i in range(len(output))]
     maximum_MAP_pos = np.where(log_probs == np.max(log_probs))[0][0]
     fin_MAP_out = output[maximum_MAP_pos]    
     
@@ -227,7 +227,7 @@ def hmm_ber_var_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count())
     fin_VI_out = output[maximum_VI_pos]
     
     # Best MAP model
-    log_probs = [output[i][1].log_likelihood[-1] for i in range(len(output))]
+    log_probs = [output[i][1].log_posterior[-1] for i in range(len(output))]
     maximum_MAP_pos = np.where(log_probs == np.max(log_probs))[0][0]
     fin_MAP_out = output[maximum_MAP_pos]    
     

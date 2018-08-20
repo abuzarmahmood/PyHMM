@@ -92,6 +92,8 @@ def fake_cat_firing(nrns,trials,length,num_states,state_order,ceil_p,jitter_t,mi
     ber_data = fake_ber_firing(nrns,trials,length,num_states,state_order,ceil_p,jitter_t,min_duration)
     ber_data, t, p = ber_data[0], ber_data[1], ber_data[2]
     
+    ber_data = np.swapaxes(ber_data,0,1)
+    
     # Remove multiple spikes in same time bin (for categorical HMM)
     for i in range(ber_data.shape[0]): # Loop over trials
         for k in range(ber_data.shape[2]): # Loop over time
@@ -108,7 +110,7 @@ def fake_cat_firing(nrns,trials,length,num_states,state_order,ceil_p,jitter_t,mi
             if firing_unit.size > 0:
                 cat_binned_spikes[i,j] = firing_unit + 1
     
-    return ber_data, t, p
+    return cat_binned_spikes, t, p
 
 # Raster plot
 def raster(data,trans_times=None,expected_latent_state=None):
@@ -121,15 +123,9 @@ def raster(data,trans_times=None,expected_latent_state=None):
     # Red lines indicate mean transition times
     # Yellow ticks indicate individual neuron transition times
     
-       
-    # Plot individual neuron transition times
-    if trans_times is not None:
-        for unit in range(data.shape[0]):
-            for transition in range(trans_times.shape[0]):
-                plt.vlines(trans_times[transition,unit], unit, unit+0.5, linewidth = 3, color = 'y')
-    
-    # Plot spikes  
+    # Bernoulli data
     if data.ndim > 1:       
+        # Plot spikes 
         for unit in range(data.shape[0]):
             for time in range(data.shape[1]):
                 if data[unit, time] > 0:
@@ -137,19 +133,42 @@ def raster(data,trans_times=None,expected_latent_state=None):
         # Plot state probability
         if expected_latent_state is not None:
             plt.plot(expected_latent_state.T*data.shape[0])
+            
+        # Plot mean transition times         
+        if trans_times is not None:
+            mean_trans = np.mean(trans_times, axis = 1)
+            for transition in range(len(mean_trans)):
+                plt.vlines(mean_trans[transition], 0, data.shape[0],colors = 'r', linewidth = 1)
         
+        # Plot individual neuron transition times
+        if trans_times is not None:
+            for unit in range(data.shape[0]):
+                for transition in range(trans_times.shape[0]):
+                    plt.vlines(trans_times[transition,unit], unit, unit+0.5, linewidth = 3, color = 'y')
+    
+    # Categorical Data
     else:
+        # Plot spikes
        for time in range(data.shape[0]):
            if data[time] > 0:
                plt.vlines(time, data[time], data[time] + 0.5, linewidth = 0.5)
+               
+        # Plot state probabilities
        if expected_latent_state is not None:
             plt.plot(expected_latent_state.T*np.unique(data).size)
-    
-    # Plot mean transition times         
-    if trans_times is not None:
-        mean_trans = np.mean(trans_times, axis = 1)
-        for transition in range(len(mean_trans)):
-            plt.vlines(mean_trans[transition], 0, data.shape[0],colors = 'r', linewidth = 1)
+            
+        # Plot mean transition times
+       if trans_times is not None:
+            mean_trans = np.mean(trans_times, axis = 1)
+            for transition in range(len(mean_trans)):
+                plt.vlines(mean_trans[transition], 0, np.unique(data).size,colors = 'r', linewidth = 1)
+        
+        # Plot individual neuron transition times
+       if trans_times is not None:
+            for unit in range(trans_times.shape[1]):
+                for transition in range(trans_times.shape[0]):
+                    plt.vlines(trans_times[transition,unit], unit, unit+0.5, linewidth = 3, color = 'y')
+        
             
     plt.xlabel('Time post stimulus (ms)')
     plt.ylabel('Neuron')
