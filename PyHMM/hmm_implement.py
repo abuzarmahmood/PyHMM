@@ -181,10 +181,31 @@ for model_num_states in range(min_states,max_states+1):
         
         data = off_spikes[taste]
         
-        # MAP HMM
-        model_MAP = hmm_cat_map_multi(data,seed_num,model_num_states)
-        alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
+# =============================================================================
+#         # MAP HMM
+#         model_MAP = hmm_cat_map_multi(data,seed_num,model_num_states)
+#         alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
+#         
+#         # Save figures in appropriate directories
+#         for i in range(data.shape[0]):
+#             plt.figure()
+#             raster(data = data[i,:],expected_latent_state = expected_latent_state[:,i,:])
+#             plt.savefig(folder_name + '/' + '%i_map_%ist.png' % (i,model_num_states))
+#             plt.close(i)
+#         
+#         plt.figure()
+#         hinton(model_MAP.p_transitions.T)
+#         plt.title('Log_lik = %f' %model_MAP.log_likelihood[-1])
+#         plt.suptitle('Model converged = ' + str(model_MAP.converged))
+#         plt.savefig(folder_name + '/' + 'hinton_map_%ist.png' % model_num_states)
+#         plt.close()
+# =============================================================================
         
+        # Variational Inference HMM
+        model_VI, model_MAP = hmm_cat_var_multi(data,seed_num,model_num_states)
+        
+        # MAP Outputs
+        alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
         # Save figures in appropriate directories
         for i in range(data.shape[0]):
             plt.figure()
@@ -199,10 +220,8 @@ for model_num_states in range(min_states,max_states+1):
         plt.savefig(folder_name + '/' + 'hinton_map_%ist.png' % model_num_states)
         plt.close()
         
-        # Variational Inference HMM
-        model_VI = hmm_cat_var_multi(data,seed_num,model_num_states)
+        # VI Outputs
         alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_VI.E_step()
-        
         # Save figures in appropriate directories
         for i in range(data.shape[0]):
             plt.figure()
