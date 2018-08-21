@@ -16,6 +16,7 @@ import multiprocessing as mp
 ###############
 
 def hmm_cat_map(binned_spikes,seed,num_states):
+    
     np.random.seed(seed)
     n_emissions = np.unique(binned_spikes).size
     
@@ -25,31 +26,48 @@ def hmm_cat_map(binned_spikes,seed,num_states):
             max_iter = 2000, 
             threshold = 1e-6)
     
-    # Define probabilities
-    p_transitions = np.abs(np.eye(num_states) - np.random.rand(num_states,num_states)*0.05) #(num_states X num_states)
+    # Desgined initial conditions
+# =============================================================================
+#     # Define probabilities
+#     p_transitions = np.abs(np.eye(num_states) - np.random.rand(num_states,num_states)*0.05) #(num_states X num_states)
+#     p_emissions = np.random.random(size=(num_states, n_emissions)) #(num_states X num_emissions)
+#     p_start = np.random.random(num_states) #(num_states)
+#     
+#     # Define pseudocounts
+#     # Pseudocounts multiplied by random number to add variance to different runs
+#     # Pseudocounts are on the order of numbers for a single trial
+#     start_pseuedocounts = np.ones(num_states) #(num_states)
+#     transition_pseudocounts = np.abs(np.eye(num_states)*binned_spikes.shape[1] - np.random.rand(num_states,num_states)*binned_spikes.shape[1]*0.05) #(num_states X num_states)
+#     
+#     # Emission pseudocounts : Average count of a neuron/trial
+#     avg_firing = np.zeros(n_emissions)
+#     for i in range(avg_firing.size):
+#         avg_firing[i] = np.sum(binned_spikes == i) #(states X num_emissions)
+#     emission_pseudocounts =  np.tile(avg_firing/binned_spikes.shape[0], (num_states,1)) #(num_states X num_emissions)
+#     
+# =============================================================================
+    
+    # Random initial conditions
+    p_transitions = np.random.rand(num_states,num_states) #(num_states X num_states)
     p_emissions = np.random.random(size=(num_states, n_emissions)) #(num_states X num_emissions)
     p_start = np.random.random(num_states) #(num_states)
-    
-    # Define pseudocounts
-    # Pseudocounts multiplied by random number to add variance to different runs
-    # Pseudocounts are on the order of numbers for a single trial
-    start_pseuedocounts = np.ones(num_states) #(num_states)
-    transition_pseudocounts = np.abs(np.eye(num_states)*binned_spikes.shape[1] - np.random.rand(num_states,num_states)*binned_spikes.shape[1]*0.05) #(num_states X num_states)
-    
-    # Emission pseudocounts : Average count of a neuron/trial
-    avg_firing = np.zeros(n_emissions)
-    for i in range(avg_firing.size):
-        avg_firing[i] = np.sum(binned_spikes == i) #(states X num_emissions)
-    emission_pseudocounts =  np.tile(avg_firing/binned_spikes.shape[0], (num_states,1)) #(num_states X num_emissions)
+    start_pseuedocounts = np.random.random(num_states) #(num_states)
+    transition_pseudocounts = np.random.rand(num_states,num_states) #(num_states X num_states)
+    emission_pseudocounts = np.random.random(size=(num_states, n_emissions)) #(num_states X num_emissions)
     
     model.fit(
             data=binned_spikes, 
             p_transitions=p_transitions, 
             p_emissions=p_emissions, 
-            p_start=p_start, 
-            transition_pseudocounts=transition_pseudocounts*np.random.random(), 
-            emission_pseudocounts=emission_pseudocounts*np.random.random(), 
-            start_pseudocounts=start_pseuedocounts*np.random.random(), 
+            p_start=p_start,
+            transition_pseudocounts=transition_pseudocounts, 
+            emission_pseudocounts=emission_pseudocounts, 
+            start_pseudocounts=start_pseuedocounts,
+# =============================================================================
+#             transition_pseudocounts=transition_pseudocounts*np.random.random(), 
+#             emission_pseudocounts=emission_pseudocounts*np.random.random(), 
+#             start_pseudocounts=start_pseuedocounts*np.random.random(), 
+# =============================================================================
             verbose = 0)
     
     return model
@@ -131,13 +149,12 @@ def hmm_ber_map_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count())
 
 
 # binned_trial = neurons x trials x time
-# intial_model = output model from hmm_map_fit
 
 ###############
 # CATEGORICAL #
 ###############
 
-def hmm_cat_var(binned_spikes,seed,num_states,scale=0.1):
+def hmm_cat_var(binned_spikes,seed,num_states):
     
     initial_model = hmm_cat_map(binned_spikes,seed,num_states)
     
@@ -152,9 +169,9 @@ def hmm_cat_var(binned_spikes,seed,num_states,scale=0.1):
             transition_hyperprior = 1, 
             emission_hyperprior = 1, 
             start_hyperprior = 1, 
-            initial_transition_counts = binned_spikes.shape[1]*initial_model.p_transitions*scale, 
-            initial_emission_counts = binned_spikes.shape[1]*initial_model.p_emissions*scale,
-            initial_start_counts = np.unique(binned_spikes).size*initial_model.p_start*scale, 
+            initial_transition_counts = binned_spikes.shape[1]*initial_model.p_transitions, 
+            initial_emission_counts = binned_spikes.shape[1]*initial_model.p_emissions,
+            initial_start_counts = np.unique(binned_spikes).size*initial_model.p_start, 
             update_hyperpriors = True, 
             update_hyperpriors_iter = 10,
             verbose = 0)
