@@ -15,7 +15,8 @@ import multiprocessing as mp
 # CATEGORICAL #
 ###############
 
-def hmm_cat_map(binned_spikes,seed,num_states):
+def hmm_cat_map(binned_spikes,seed,num_states,initial_conds_type = 'des'):
+    # Initial conditions can either be 'des' (designed) or 'rand' (random)
     
     np.random.seed(seed)
     n_emissions = np.unique(binned_spikes).size
@@ -27,33 +28,32 @@ def hmm_cat_map(binned_spikes,seed,num_states):
             threshold = 1e-6)
     
     # Desgined initial conditions
-# =============================================================================
-#     # Define probabilities
-#     p_transitions = np.abs(np.eye(num_states) - np.random.rand(num_states,num_states)*0.05) #(num_states X num_states)
-#     p_emissions = np.random.random(size=(num_states, n_emissions)) #(num_states X num_emissions)
-#     p_start = np.random.random(num_states) #(num_states)
-#     
-#     # Define pseudocounts
-#     # Pseudocounts multiplied by random number to add variance to different runs
-#     # Pseudocounts are on the order of numbers for a single trial
-#     start_pseuedocounts = np.ones(num_states) #(num_states)
-#     transition_pseudocounts = np.abs(np.eye(num_states)*binned_spikes.shape[1] - np.random.rand(num_states,num_states)*binned_spikes.shape[1]*0.05) #(num_states X num_states)
-#     
-#     # Emission pseudocounts : Average count of a neuron/trial
-#     avg_firing = np.zeros(n_emissions)
-#     for i in range(avg_firing.size):
-#         avg_firing[i] = np.sum(binned_spikes == i) #(states X num_emissions)
-#     emission_pseudocounts =  np.tile(avg_firing/binned_spikes.shape[0], (num_states,1)) #(num_states X num_emissions)
-#     
-# =============================================================================
+    if initial_conds_type == 'des':
+        # Define probabilities
+        p_transitions = np.abs(np.eye(num_states) - np.random.rand(num_states,num_states)*0.05) #(num_states X num_states)
+        p_emissions = np.random.random(size=(num_states, n_emissions)) #(num_states X num_emissions)
+        p_start = np.random.random(num_states) #(num_states)
+        
+        # Define pseudocounts
+        # Pseudocounts multiplied by random number to add variance to different runs
+        # Pseudocounts are on the order of numbers for a single trial
+        start_pseuedocounts = np.ones(num_states)*np.random.random() #(num_states)
+        transition_pseudocounts = np.abs(np.eye(num_states)*binned_spikes.shape[1] - np.random.rand(num_states,num_states)*binned_spikes.shape[1]*0.05)*np.random.random() #(num_states X num_states)
+        
+        # Emission pseudocounts : Average count of a neuron/trial
+        avg_firing = np.zeros(n_emissions)
+        for i in range(avg_firing.size):
+            avg_firing[i] = np.sum(binned_spikes == i) #(states X num_emissions)
+        emission_pseudocounts =  np.tile(avg_firing/binned_spikes.shape[0], (num_states,1))*np.random.random() #(num_states X num_emissions)
     
-    # Random initial conditions
-    p_transitions = np.random.rand(num_states,num_states) #(num_states X num_states)
-    p_emissions = np.random.random(size=(num_states, n_emissions)) #(num_states X num_emissions)
-    p_start = np.random.random(num_states) #(num_states)
-    start_pseuedocounts = np.random.random(num_states) #(num_states)
-    transition_pseudocounts = np.random.rand(num_states,num_states) #(num_states X num_states)
-    emission_pseudocounts = np.random.random(size=(num_states, n_emissions)) #(num_states X num_emissions)
+    # Random initial conditions, all between 0 and 1
+    elif initial_conds_type == 'rand':
+        p_transitions = np.random.rand(num_states,num_states) #(num_states X num_states)
+        p_emissions = np.random.random(size=(num_states, n_emissions)) #(num_states X num_emissions)
+        p_start = np.random.random(num_states) #(num_states)
+        start_pseuedocounts = np.random.random(num_states) #(num_states)
+        transition_pseudocounts = np.random.rand(num_states,num_states) #(num_states X num_states)
+        emission_pseudocounts = np.random.random(size=(num_states, n_emissions)) #(num_states X num_emissions)
     
     model.fit(
             data=binned_spikes, 
@@ -63,11 +63,6 @@ def hmm_cat_map(binned_spikes,seed,num_states):
             transition_pseudocounts=transition_pseudocounts, 
             emission_pseudocounts=emission_pseudocounts, 
             start_pseudocounts=start_pseuedocounts,
-# =============================================================================
-#             transition_pseudocounts=transition_pseudocounts*np.random.random(), 
-#             emission_pseudocounts=emission_pseudocounts*np.random.random(), 
-#             start_pseudocounts=start_pseuedocounts*np.random.random(), 
-# =============================================================================
             verbose = 0)
     
     return model
