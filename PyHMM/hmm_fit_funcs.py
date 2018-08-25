@@ -155,7 +155,7 @@ def hmm_cat_var(binned_spikes,seed,num_states,initial_conds_type):
     
     model_VI = variationalHMM.CategoricalHMM(
             num_states = num_states, 
-            num_emissions = np.unique(binned_spikes).size, 
+            num_emissions = np.max(binned_spikes).astype('int') + 1, # 0-indexing, 
             max_iter = 1500, 
             threshold = 1e-4)
   
