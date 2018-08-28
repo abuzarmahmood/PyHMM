@@ -15,7 +15,7 @@ import multiprocessing as mp
 # CATEGORICAL #
 ###############
 
-def hmm_cat_map(binned_spikes,seed,num_states,initial_conds_type = 'des'):
+def hmm_cat_map(binned_spikes,seed,num_states,initial_conds_type = 'des', max_iter = 1500, threshold = 1e-4):
     # Initial conditions can either be 'des' (designed) or 'rand' (random)
     
     np.random.seed(seed)
@@ -24,8 +24,8 @@ def hmm_cat_map(binned_spikes,seed,num_states,initial_conds_type = 'des'):
     model = DiscreteHMM.CategoricalHMM(
             num_states = num_states, 
             num_emissions = n_emissions, 
-            max_iter = 1500, 
-            threshold = 1e-4)
+            max_iter = max_iter, 
+            threshold =  threshold)
     
     # Desgined initial conditions
     if initial_conds_type == 'des':
@@ -83,13 +83,13 @@ def hmm_cat_map_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count())
 # BERNOULLI #
 #############                    
 
-def hmm_ber_map(binned_spikes,seed,num_states):
+def hmm_ber_map(binned_spikes,seed,num_states,max_iter = 1500,threshold = 1e-4):
     np.random.seed(seed)
     model = DiscreteHMM.IndependentBernoulliHMM(
             num_states = num_states, 
             num_emissions = binned_spikes.shape[0], 
-            max_iter = 1500, 
-            threshold = 1e-4)
+            max_iter = max_iter, 
+            threshold = threshold)
 
     # Define probabilities
     p_transitions = np.abs(np.eye(num_states) - np.random.rand(num_states,num_states)*0.05) #(num_states X num_states)
@@ -149,15 +149,15 @@ def hmm_ber_map_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count())
 # CATEGORICAL #
 ###############
 
-def hmm_cat_var(binned_spikes,seed,num_states,initial_conds_type):
+def hmm_cat_var(binned_spikes,seed,num_states,initial_conds_type, max_iter = 1500,threshold = 1e-4):
     
     initial_model = hmm_cat_map(binned_spikes,seed,num_states,initial_conds_type)
     
     model_VI = variationalHMM.CategoricalHMM(
             num_states = num_states, 
             num_emissions = np.max(binned_spikes).astype('int') + 1, # 0-indexing, 
-            max_iter = 1500, 
-            threshold = 1e-4)
+            max_iter = max_iter, 
+            threshold = threshold)
   
     model_VI.fit(
             data = binned_spikes, 
@@ -197,15 +197,15 @@ def hmm_cat_var_multi(binned_spikes,num_seeds,num_states,initial_conds_type, n_c
 # BERNOULLI #
 ############# 
 
-def hmm_ber_var(binned_spikes,seed,num_states):
+def hmm_ber_var(binned_spikes,seed,num_states, max_iter = 1500, threshold = 1e-4):
     
     initial_model = hmm_ber_map(binned_spikes,seed,num_states)
     
     model_VI = variationalHMM.IndependentBernoulliHMM(
             num_states = num_states, 
             num_emissions = binned_spikes.shape[0], 
-            max_iter = 1500, 
-            threshold = 1e-4)
+            max_iter = max_iter, 
+            threshold = threshold)
 
     # Define probabilities and pseudocounts
     p_emissions_bernoulli = np.zeros((model_VI.num_states, binned_spikes.shape[0], 2))

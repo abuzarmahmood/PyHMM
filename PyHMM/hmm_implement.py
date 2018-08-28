@@ -155,95 +155,93 @@ for file in range(1,7):
     
     seed_num = 100
     
-    # Off trials
-    cond_dir = 'off'
+    for cond_dir in ['off', 'on']:
     
-    if os.path.isdir(cond_dir):
-        shutil.rmtree(cond_dir)
-    os.mkdir(cond_dir)
-    os.chdir(data_dir + cond_dir)
-    
-    for model_num_states in range(min_states,max_states+1):
-        for taste in range(len(off_spikes)):
-            
-            folder_name = 'taste_%i/%i_states' % (taste,model_num_states)
-            if os.path.isdir(folder_name):
-                shutil.rmtree(folder_name)
-            os.makedirs(folder_name)
-            
-            data = off_spikes[taste]
-            
-    # =============================================================================
-    #         # MAP HMM
-    #         model_MAP = hmm_cat_map_multi(data,seed_num,model_num_states)
-    #         alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
-    #         
-    #         # Save figures in appropriate directories
-    #         for i in range(data.shape[0]):
-    #             plt.figure()
-    #             raster(data = data[i,:],expected_latent_state = expected_latent_state[:,i,:])
-    #             plt.savefig(folder_name + '/' + '%i_map_%ist.png' % (i,model_num_states))
-    #             plt.close(i)
-    #         
-    #         plt.figure()
-    #         hinton(model_MAP.p_transitions.T)
-    #         plt.title('Log_lik = %f' %model_MAP.log_likelihood[-1])
-    #         plt.suptitle('Model converged = ' + str(model_MAP.converged))
-    #         plt.savefig(folder_name + '/' + 'hinton_map_%ist.png' % model_num_states)
-    #         plt.close()
-    # =============================================================================
-            
-            # Variational Inference HMM
-            model_VI, model_MAP = hmm_cat_var_multi(data,seed_num,model_num_states)
-            
-            # MAP Outputs
-            alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
-            # Save figures in appropriate directories
-            for i in range(data.shape[0]):
-                plt.figure()
-                raster(data = data[i,:],expected_latent_state = expected_latent_state[:,i,:])
-                plt.savefig(folder_name + '/' + '%i_map_%ist.png' % (i,model_num_states))
-                plt.close(i)
-            
-            plt.figure()
-            hinton(model_MAP.p_transitions.T)
-            plt.title('Log_lik = %f' %model_MAP.log_likelihood[-1])
-            plt.suptitle('Model converged = ' + str(model_MAP.converged))
-            plt.savefig(folder_name + '/' + 'hinton_map_%ist.png' % model_num_states)
-            plt.close()
-            
-            # VI Outputs
-            alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_VI.E_step()
-            # Save figures in appropriate directories
-            for i in range(data.shape[0]):
-                plt.figure()
-                raster(data = data[i,:],expected_latent_state = expected_latent_state[:,i,:])
-                plt.savefig(folder_name + '/' + '%i_var_%ist.png' % (i,model_num_states))
-                plt.close(i)
-            
-            plt.figure()
-            hinton(model_VI.transition_counts)
-            plt.title('ELBO = %f' %model_VI.ELBO[-1])
-            plt.suptitle('Model converged = ' + str(model_VI.converged))
-            plt.savefig(folder_name + '/' + 'hinton_var_%ist.png' % model_num_states)
-            plt.close()
-            
-            # Save data in appropriate spots in HDF5 file
-            node_name = '/var_hmm/taste_%i/%i_states' % (taste,model_num_states)
-            
-            try:
-                hf5.remove_node(node_name,recursive =  True)
-            except:
-                pass
-            
-            hf5.create_group('/var_hmm/taste_%i' % taste, '%i_states' % model_num_states,createparents=True)
-            
-            hf5.create_array(node_name,'expected_latent_state',expected_latent_state)
-            hf5.create_array(node_name,'ELBO',model_VI.ELBO[-1])
-            hf5.create_array(node_name,'p_transitions',model_VI.p_transitions)
-            hf5.create_array(node_name,'p_emissions',model_VI.p_emissions)
-            hf5.create_array(node_name,'model_converged_val',model_VI.converged*1)
-            hf5.flush()
+        if os.path.isdir(data_dir + cond_dir):
+            shutil.rmtree(data_dir + cond_dir)
+        os.mkdir(data_dir + cond_dir)
+        os.chdir(data_dir + cond_dir)
+        
+        for model_num_states in range(min_states,max_states+1):
+            for taste in range(len(off_spikes)):
                 
-    
-    # On trials
+                folder_name = 'taste_%i/%i_states' % (taste,model_num_states)
+                if os.path.isdir(folder_name):
+                    shutil.rmtree(folder_name)
+                os.makedirs(folder_name)
+                
+                #data = off_spikes[taste]
+                exec('data = %s_spikes[taste]' % cond_dir)
+                
+                
+                # Variational Inference HMM
+                model_VI, model_MAP = hmm_cat_var_multi(data,seed_num,model_num_states,initial_conds_type = 'rand',1500,1e-6)
+                
+                ### MAP Outputs ###
+                alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
+                # Save figures in appropriate directories
+                for i in range(data.shape[0]):
+                    fig = plt.figure()
+                    raster(data = data[i,:],expected_latent_state = expected_latent_state[:,i,:])
+                    fig.savefig(folder_name + '/' + '%i_map_%ist.png' % (i,model_num_states))
+                    plt.close(fig)
+                
+                fig = plt.figure()
+                hinton(model_MAP.p_transitions.T)
+                plt.title('Log_lik = %f' %model_MAP.log_posterior[-1])
+                plt.suptitle('Model converged = ' + str(model_MAP.converged))
+                fig.savefig(folder_name + '/' + 'hinton_map_%ist.png' % model_num_states)
+                plt.close(fig)
+
+                # Save data in appropriate spots in HDF5 file
+                node_name = '/map_hmm/%s/taste_%i/states_%i' % (cond_dir, taste, model_num_states)
+                
+                try:
+                    hf5.remove_node(node_name,recursive =  True)
+                except:
+                    pass
+                
+                hf5.create_group('/map_hmm/%s/taste_%i' % (cond_dir, taste), 'states_%i' % model_num_states,createparents=True)
+                
+                hf5.create_array(node_name,'expected_latent_state',expected_latent_state)
+                hf5.create_array(node_name,'log_posterior',model_MAP.log_posterior[-1])
+                hf5.create_array(node_name,'p_transitions',model_MAP.p_transitions)
+                hf5.create_array(node_name,'p_emissions',model_MAP.p_emissions)
+                hf5.create_array(node_name,'model_converged_val',model_MAP.converged*1)
+                hf5.flush()
+
+                ### VI Outputs ###
+                alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_VI.E_step()
+                # Save figures in appropriate directories
+                for i in range(data.shape[0]):
+                    fig = plt.figure()
+                    raster(data = data[i,:],expected_latent_state = expected_latent_state[:,i,:])
+                    fig.savefig(folder_name + '/' + '%i_var_%ist.png' % (i,model_num_states))
+                    plt.close(fig)
+                
+                fig = plt.figure()
+                hinton(model_VI.transition_counts)
+                plt.title('ELBO = %f' %model_VI.ELBO[-1])
+                plt.suptitle('Model converged = ' + str(model_VI.converged))
+                fig.savefig(folder_name + '/' + 'hinton_var_%ist.png' % model_num_states)
+                plt.close(fig)
+                
+                # Save data in appropriate spots in HDF5 file
+                node_name = '/var_hmm/%s/taste_%i/states_%i' % (cond_dir, taste, model_num_states)
+                
+                try:
+                    hf5.remove_node(node_name,recursive =  True)
+                except:
+                    pass
+                
+                hf5.create_group('/var_hmm/%s/taste_%i' % (cond_dir, taste), 'states_%i' % model_num_states,createparents=True)
+                
+                hf5.create_array(node_name,'expected_latent_state',expected_latent_state)
+                hf5.create_array(node_name,'ELBO',model_VI.ELBO[-1])
+                hf5.create_array(node_name,'p_transitions',model_VI.p_transitions)
+                hf5.create_array(node_name,'p_emissions',model_VI.p_emissions)
+                hf5.create_array(node_name,'model_converged_val',model_VI.converged*1)
+                hf5.flush()
+            
+
+    hf5.close()
