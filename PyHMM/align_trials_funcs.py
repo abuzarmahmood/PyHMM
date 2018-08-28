@@ -14,41 +14,44 @@ import numpy as np
 # - Use threshold to find when that state becomes significant during a trial (regardless of given time range)
 # - Snip firing of neuron around that trial for a given window length
 
-# Find dominant state during range
-# First emergence of dominant state (check slope to make sure)
-    # This ensures that dominant state transition is not picked at 0
-
-def calc_trans(expected_latent_state,time_range,probability_thresh, start_t, bin_size):
+def calc_trans(expected_latent_state,time_range,probability_thresh, start_t, bin_size, delta = 0.2):
     """
     Calculates transition points in relation to origin spikes sequence
+    Will look for closest point to threshold probability
+        If prob moves THROUGH threshold, it will find closes point AND first transition
+        Otherwise it will just return closes point
     : expected_latent_state: states x trials x time
     : time_range: Range of indices for calculating dominant state
     : probability_tresh: Threshold to mark state transition
     : start_t: Start time for data USED TO FIT HMM
     : bin_size: Bin size for data USED TO FIT HMM
+    : delta: Dictates range of transition
+        e.g. delta = 0.1 will look for probability change from 0-0.1 to 0.9-1
     Return -> Times at which transitions occur for every trial
+        Flags: 0 -> No transition, 1 -> Transition occured
     """
-    
     transition_points = []
+    flags = []
     dom_state = np.argmax(np.sum(np.sum(expected_latent_state,axis=1)[:,time_range],axis = 1))
     
     for trial in range(expected_latent_state.shape[1]):
-        this_transition = np.where(expected_latent_state[dom_state,trial,:] > probability_thresh)[0][0]
-        if this_transition > 0:    
-            transition_points.append(this_transition)
+        above_range = expected_latent_state[dom_state,trial,:] > 1 - delta
+        below_range = expected_latent_state[dom_state,trial,:] < delta      
+        if np.sum(above_range) and np.sum(below_range) > 0:
+            this_transition = np.where(np.abs(np.diff((expected_latent_state[dom_state,trial,:] > probability_thresh)*1)))[0][0]
+            flags.append(1)
         else:
-            transition_points.append(-1)
-    
-    transition_times = np.zeros(len(transitions))        
-    for i in range(transition_times.size):
-        if transition_points[i] > 0:
-            transition_times[i] = (transition_points[i]*bin_size) + start_t
-        else:
-            transition_times[i] = -1
-            
-    return transition_times
+            this_transition = np.argmin(np.abs(expected_latent_state[dom_state,trial,:] - probability_thresh))
+            flags.append(0)
+        transition_points.append(this_transition)
 
-def ber_align_trials(data, transition_times, start_t_data, bin_size_data, window_size):
+    transition_times = np.zeros(len(transition_points))        
+    for i in range(transition_times.size):
+            transition_times[i] = (transition_points[i]*bin_size) + start_t
+            
+    return transition_times, flags
+
+def ber_align_trials(data, transition_times, start_t_data, bin_size_data, window_size, flags = None, use_flags = False):
     """
     : data: neurons X trials X time
         : Original spike timing data (without any snipping)
@@ -56,6 +59,8 @@ def ber_align_trials(data, transition_times, start_t_data, bin_size_data, window
     : start_t_data: Start time of data FED TO FUNCTION
     : bin_size_data: Bin size of data FED TO FUNCTION
     : window_size: Window DIAMETER around transition points (in milliseconds)
+    : use_flags: Use flags created by calc_trans
+        If true, only trials with 'proper' transitions will be aligned
     Return -> Realigned data with same dims as input data (but cropped in time)
     """
     min_transition_time = min(transition_times[transition_times > 0])
@@ -63,7 +68,16 @@ def ber_align_trials(data, transition_times, start_t_data, bin_size_data, window
         raise ValueError('Data start time too late to handle window size\nCan support window of %i' % int((min_transition_time - start_t_data)/2))
     
     window_bins = int(window_size/bin_size_data)
-    aligned_data = np.zeros((data.shape[0],data.shape[1],window_bins))
+    
+    if use_flags:
+        if flags == None:
+            raise ValueError('use_flags selected but no flags supplied')
+        else:
+            aligned_data = np.zeros((data.shape[0],np.sum(flags),window_bins))
+            transition_times = transition_times[flags]
+    else:
+        aligned_data = np.zeros((data.shape[0],data.shape[1],window_bins))
+        
     for trial in range(aligned_data.shape[1]):
         if transition_times[trial] > 0:
             # Convert transition time to bins in given data
@@ -79,8 +93,9 @@ def cat_align_trials(data, transition_times, start_t_data, bin_size_data, window
     """
     Convert categorical data to spike trains and feed into ber_align_trials
     : data: trials x time
+    NOTE: Original data is not categorical, at this moment, I don't think it 
+        would be good idea to align data converted to categorical 
     """
-    
     spikes = np.zeros((np.max(data).astype('int') + 1,data.shape[0] ,data.shape[1])) # categorical data has no firing too
     for trial in range(spikes.shape[1]):
         for time in range(spikes.shape[2]):
@@ -93,9 +108,13 @@ def cat_align_trials(data, transition_times, start_t_data, bin_size_data, window
     return aligned_data
 
 def calc_firing_rate(data, window_size, step_size):
-    # Takes in either bernoulli data (neurons x trials x time)
+    """
+    Calculates firing rate by moving window smoothing of spikes
+    : data: neurons x trials x time
+    : window_size: Size of moving window IN MS
+    : step_size: IN MS
     # Returns an array (neurons X trials X time) reduced by binning in time
-    
+    """
     firing = np.zeros((data.shape[0],data.shape[1],int((data.shape[2] - window_size)/step_size + 1)))    
     for nrn in range(firing.shape[0]):    
         for trial in range(firing.shape[1]):
@@ -104,9 +123,13 @@ def calc_firing_rate(data, window_size, step_size):
     return firing
 
 def mean_slope(data,window_radius):
-    # Calculates slope for all points in data in windows dictated by window radius
-    # Output is vector of slopes same size as data
-        # Points on edges with incomplete windows are returned with NaN slopes
+    """
+    Calculates mean slope for all points in data by moving window
+    : data: length = time
+    : window_radius: RADIUS of moving window in BINS
+    Output is vector of slopes same size as data
+        Points on edges with incomplete windows are returned with NaN slopes
+    """
     slopes = np.zeros(data.shape)
     
     for time in range(data.size):
