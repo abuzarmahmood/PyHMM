@@ -15,7 +15,9 @@ import multiprocessing as mp
 # CATEGORICAL #
 ###############
 
-def hmm_cat_map(binned_spikes,seed,num_states,initial_conds_type = 'des', max_iter = 1500, threshold = 1e-4):
+def hmm_cat_map(binned_spikes,seed,num_states,initial_conds_type = 'des', 
+                max_iter = 1500, threshold = 1e-4):
+    
     # Initial conditions can either be 'des' (designed) or 'rand' (random)
     
     np.random.seed(seed)
@@ -67,9 +69,12 @@ def hmm_cat_map(binned_spikes,seed,num_states,initial_conds_type = 'des', max_it
     
     return model
 
-def hmm_cat_map_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count()):
+def hmm_cat_map_multi(binned_spikes, num_seeds, num_states, initial_conds_type, 
+                      max_iter, threshold, n_cpu = mp.cpu_count()):
+    
     pool = mp.Pool(processes = n_cpu)
-    results = [pool.apply_async(hmm_cat_map, args = (binned_spikes, seed, num_states)) for seed in range(num_seeds)]
+    results = [pool.apply_async(hmm_cat_map, args = (binned_spikes, seed, 
+        num_states, initial_conds_type, max_iter, threshold)) for seed in range(num_seeds)]
     output = [p.get() for p in results]
     pool.close()
     pool.join()  
@@ -151,7 +156,7 @@ def hmm_ber_map_multi(binned_spikes,num_seeds,num_states,n_cpu = mp.cpu_count())
 
 def hmm_cat_var(binned_spikes,seed,num_states,initial_conds_type, max_iter = 1500,threshold = 1e-4):
     
-    initial_model = hmm_cat_map(binned_spikes,seed,num_states,initial_conds_type)
+    initial_model = hmm_cat_map(binned_spikes,seed,num_states,initial_conds_type, max_iter, threshold)
     
     model_VI = variationalHMM.CategoricalHMM(
             num_states = num_states, 
@@ -174,9 +179,10 @@ def hmm_cat_var(binned_spikes,seed,num_states,initial_conds_type, max_iter = 150
     return model_VI, initial_model # This way it can evaluate both best VI model and best MAP
                                     # model in the same run
 
-def hmm_cat_var_multi(binned_spikes,num_seeds,num_states,initial_conds_type, n_cpu = mp.cpu_count()):
+def hmm_cat_var_multi(binned_spikes,num_seeds,num_states,initial_conds_type, max_iter, threshold, n_cpu = mp.cpu_count()):
     pool = mp.Pool(processes = n_cpu)
-    results = [pool.apply_async(hmm_cat_var, args = (binned_spikes, seed, num_states,initial_conds_type)) for seed in range(num_seeds)]
+    results = [pool.apply_async(hmm_cat_var, args = (binned_spikes, seed, 
+        num_states,initial_conds_type, max_iter, threshold)) for seed in range(num_seeds)]
     output = [p.get() for p in results]
     pool.close()
     pool.join()  

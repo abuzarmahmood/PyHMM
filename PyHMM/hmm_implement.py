@@ -14,7 +14,7 @@ import shutil
 os.chdir('/media/bigdata/PyHMM/PyHMM/')
 import DiscreteHMM
 from hmm_fit_funcs import *
-from align_trials import *
+from align_trials_funcs import *
 from hinton import hinton
 from fake_firing import raster
 
@@ -32,7 +32,7 @@ plt.ioff() # Prevent plots from showing
 #
 
 for file in range(1,7):
-    data_dir = '/media/bigdata/jian_you_data/random_ic/file_%i/' % file
+    data_dir = '/media/bigdata/jian_you_data/des_ic/file_%i/' % file
     os.chdir(data_dir)
     
     
@@ -175,7 +175,13 @@ for file in range(1,7):
                 
                 
                 # Variational Inference HMM
-                model_VI, model_MAP = hmm_cat_var_multi(data,seed_num,model_num_states,initial_conds_type = 'rand',1500,1e-6)
+                model_VI, model_MAP = hmm_cat_var_multi(
+                        data,
+                        seed_num,
+                        model_num_states,
+                        initial_conds_type = 'des',
+                        max_iter = 1500,
+                        threshold = 1e-6)
                 
                 ### MAP Outputs ###
                 alpha, beta, scaling, expected_latent_state, expected_latent_state_pair = model_MAP.E_step()
