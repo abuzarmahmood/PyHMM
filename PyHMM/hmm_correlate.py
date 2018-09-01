@@ -14,7 +14,8 @@
     # Taste palatability rank
     
 
-import np as numpy
+import numpy as np
+from scipy.stats import spearmanr, pearsonr
 from align_trials_funcs import *
 
 class hmm_correlate:
@@ -39,11 +40,13 @@ class hmm_correlate:
         self.expected_latent_state = expected_latent_state
         self.palatability_ranks = palatability_ranks
         
+        self.plot_dir = ''
         self.firing_rate = []
         self.transitions = []
         self.flags = []
         self.aligned_data = []
         self.unaligned_data = []
+        self.correlations = {'off_al':None,'on_al':None,'off_un':None,'on_un':None}
     
     def calc_firing_rate(self, window_size, step_size):
         """
@@ -66,7 +69,7 @@ class hmm_correlate:
             firing_rate.append(firing)
         self.firing_rate = firing_rate
         
-    def calc_transitions(self, expected_latent_state, min_prob_t, max_prob_t,
+    def calc_transitions(self, min_prob_t, max_prob_t,
                      probability_thresh, start_t, bin_size, delta = 0.2):
         """
         Calculates transition points in relation to origin spikes sequence
@@ -125,11 +128,11 @@ class hmm_correlate:
         self.flags = all_flags
 
 
-    def ber_align_trials(data, start_t_data, bin_size_data, 
+    def ber_align_trials(self,start_t_data, bin_size_data, 
                      window_size, use_flags = False):
         """
         : data: neurons X trials X time
-            : Original spike timing data (without any snipping)
+            : Original data (without any snipping)
         : transition_times: absolute time for transitions as calculates by calc_trans
         : start_t_data: Start time of data FED TO FUNCTION
         : bin_size_data: Bin size of data FED TO FUNCTION
@@ -183,4 +186,51 @@ class hmm_correlate:
             mean_transition_bin = int(np.mean(transition_times)/bin_size_data)
             unaligned_data = data[:,:,(mean_transition_bin - int(window_bins/2)):(mean_transition_bin + int(window_bins/2))]
             
-            return aligned_data, unaligned_data
+            all_aligned_data.append(aligned_data)
+            all_unaligned_data.append(unaligned_data)
+            
+            self.aligned_data = all_aligned_data
+            self.unaligned_data = all_unaligned_data
+        
+    def calc_correlations(self):      
+        off_aligned = []
+        off_unaligned = []
+        on_aligned = []
+        on_unaligned = []
+        for taste in range(len(self.aligned_data)):
+            off_aligned.append(self.aligned_data[taste][:,self.off_trials[taste],:])
+            off_unaligned.append(self.unaligned_data[taste][:,self.off_trials[taste],:])
+            on_aligned.append(self.aligned_data[taste][:,self.on_trials[taste],:])
+            on_unaligned.append(self.unaligned_data[taste][:,self.on_trials[taste],:])
+        
+        def list2square(x) :
+            trial_num = x[0].shape[1]
+            temp = np.zeros((x[0].shape[0],len(x)*trial_num,x[0].shape[2]))
+            for i in range(len(x)):
+                temp[:,i*trial_num : (i+1)*trial_num,:] = x[i]
+            return temp
+                
+        off_aligned = list2square(off_aligned)
+        on_aligned = list2square(on_aligned)
+        off_unaligned = list2square(off_unaligned)
+        on_unaligned = list2square(on_unaligned)
+        
+        palatability_vec = np.tile(self.palatability_ranks[:,np.newaxis],int(off_aligned.shape[1]/self.palatability_ranks.size)).flatten()
+        
+        
+        cor_off_aligned = np.zeros((off_aligned.shape[0],off_aligned.shape[2]))
+        cor_on_aligned = np.zeros((off_aligned.shape[0],off_aligned.shape[2]))
+        cor_off_unaligned = np.zeros((off_aligned.shape[0],off_aligned.shape[2]))
+        cor_on_unaligned = np.zeros((off_aligned.shape[0],off_aligned.shape[2]))
+        
+        for nrn in range(off_aligned.shape[0]):
+            for time in range(off_aligned.shape[2]):
+                cor_off_aligned[nrn,time] = spearmanr(off_aligned[nrn,:,time],palatability_vec)[0]
+                cor_on_aligned[nrn,time] = spearmanr(on_aligned[nrn,:,time],palatability_vec)[0]
+                cor_off_unaligned[nrn,time] = spearmanr(off_unaligned[nrn,:,time],palatability_vec)[0]
+                cor_on_unaligned[nrn,time] = spearmanr(on_unaligned[nrn,:,time],palatability_vec)[0]
+        
+        self.correlations['off_al'] = cor_off_aligned
+        self.correlations['on_al'] = cor_on_aligned
+        self.correlations['off_un'] = cor_off_unaligned
+        self.correlations['on_un'] = cor_on_unaligned
