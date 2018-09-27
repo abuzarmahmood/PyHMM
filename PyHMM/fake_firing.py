@@ -9,6 +9,8 @@
 # Import stuff
 import numpy as np
 import pylab as plt
+from random import uniform
+import copy
     
 #############
 # BERNOULLI #
@@ -18,7 +20,15 @@ import pylab as plt
 # Transitions random with some min durations
 # Jitter between individual neuron state transtiions
     
-def fake_ber_firing(nrns,trials,length,num_states,state_order,ceil_p,jitter_t,min_duration):
+def fake_ber_firing(nrns,
+                    trials,
+                    length,
+                    num_states,
+                    state_order,
+                    palatability_state,
+                    ceil_p,
+                    jitter_t,
+                    min_duration):
     # nrns = number of neurons (emissions)
     # trials = number of trials
     # length = number of bins for data
@@ -31,45 +41,59 @@ def fake_ber_firing(nrns,trials,length,num_states,state_order,ceil_p,jitter_t,mi
     
     
     # Returns data array, transition times, emission probabilities
-    data = np.zeros((nrns, trials, length)) # neurons x trials x time
+    all_data = []
+    all_t = [] # Transition times for 4 tastes -> generated randomly
+    all_p = [] # Firing probabilities for 4 tastes -> scaled by palatability
     
     # Emission probabilities of neurons for every state
-    p = np.random.rand(num_states, data.shape[0])*ceil_p # states x neuron
-    
+    p = np.random.rand(num_states, nrns)*ceil_p # states x neuron
+    taste_scaling_value = np.random.rand(nrns)*2
+    for taste in range(4):
+        this_p = copy.deepcopy(p)
+        for nrn in range(this_p.shape[1]):
+            this_p[palatability_state,nrn] =  this_p[palatability_state,nrn]*np.linspace(1,taste_scaling_value[nrn],4)[taste]
+        all_p.append(this_p)
+        
     # Transition times for every transition over every trial
-    t = np.zeros((data.shape[1], len(state_order)-1)) # trials x num of transitions (2) 
-    for trial in range(t.shape[0]):
-        first_trans, last_trans, middle_trans = [1,1,1]
-        while (first_trans or last_trans or middle_trans):
-            t[trial,:] = (np.random.rand(1,t.shape[1]) * data.shape[2])
-            
-            first_trans = (t[trial,0] < min_duration) # Make sure first transition is after min_duration
-            last_trans = (t[trial,-1] + min_duration > data.shape[2]) # Make sure last transition is min_duration before the end
-            middle_trans = np.sum(t[trial,1:] - t[trial,0:-1] < min_duration)  # Make sure there is a distance of min_duration between all intermediate transitions
-       
-        print(trial)
-    
-    t = np.repeat(t[:, :, np.newaxis], data.shape[0], axis=2) # trials x num of transitions x neurons
-    t = t + np.random.uniform(-1,1,t.shape)*jitter_t # Add jitter to individual neuron transitions
-    t = t.astype('int')
+    for taste in range(4):
+        t = np.zeros((trials, len(state_order)-1)) # trials x num of transitions (2) 
+        for trial in range(t.shape[0]):
+            first_trans, last_trans, middle_trans = [1,1,1]
+            while (first_trans or last_trans or middle_trans):
+                t[trial,:] = (np.random.rand(1,t.shape[1]) * length)
+                
+                first_trans = (t[trial,0] < min_duration) # Make sure first transition is after min_duration
+                last_trans = (t[trial,-1] + min_duration > length) # Make sure last transition is min_duration before the end
+                middle_trans = np.sum(t[trial,1:] - t[trial,0:-1] < min_duration)  # Make sure there is a distance of min_duration between all intermediate transitions
+           
+            print(trial)
+        
+        t = np.repeat(t[:, :, np.newaxis], nrns, axis=2) # trials x num of transitions x neurons
+        t = t + np.random.uniform(-1,1,t.shape)*jitter_t # Add jitter to individual neuron transitions
+        t = t.astype('int')
+        all_t.append(t)
     
     # For every trial, for every neuron, walk through time
     # If time has passed a transition, update transition count and use transitions count
     # to index from the appropriate state in state order
-    for trial in range(data.shape[1]):
-        for neuron in range(data.shape[0]):
-            trans_count = 0 # To keep track of transitions
-            for time in range(data.shape[2]):
-                try:
-                    if time < t[trial,trans_count, neuron]:
-                        data[neuron, trial, time] = np.random.binomial(1, p[state_order[trans_count],neuron])
-                    else:
-                        trans_count += 1
-                        data[neuron, trial, time] = np.random.binomial(1, p[state_order[trans_count],neuron])
-                except: # Lazy programming -_-
-                    if trans_count >= t.shape[1]:
-                        data[neuron, trial, time] = np.random.binomial(1, p[state_order[trans_count],neuron])
-    return data, t, p
+    for taste in range(4):
+        data = np.zeros((nrns, trials, length)) # neurons x trials x time
+        for trial in range(data.shape[1]):
+            for neuron in range(data.shape[0]):
+                trans_count = 0 # To keep track of transitions
+                for time in range(data.shape[2]):
+                    try:
+                        if time < all_t[taste][trial,trans_count, neuron]:
+                            data[neuron, trial, time] = np.random.binomial(1, all_p[taste][state_order[trans_count],neuron])
+                        else:
+                            trans_count += 1
+                            data[neuron, trial, time] = np.random.binomial(1, all_p[taste][state_order[trans_count],neuron])
+                    except: # Lazy programming -_-
+                        if trans_count >= all_t[taste].shape[1]:
+                            data[neuron, trial, time] = np.random.binomial(1, all_p[taste][state_order[trans_count],neuron])
+        all_data.append(data)
+        
+    return all_data, all_t, all_p, taste_scaling_value
 
 ###############
 # CATEGORICAL #
