@@ -31,6 +31,7 @@ def fake_ber_firing(nrns,
                     ceil_p,
                     jitter_t,
                     jitter_p,
+                    jitter_p_type,
                     min_duration):
     """
     nrns = number of neurons (emissions)
@@ -43,6 +44,8 @@ def fake_ber_firing(nrns,
     ceil_p = maximum firing probability
     jitter_t = max amount of jitter between neurons for a state transition (IN BINS)
     jitter_p = fraction of jitter in probability between trials of each neuron
+    jitter_p_type = abs : random noise with max value jitter_p
+                    scaled: random noise scaled by mean firing probability of that neuron
     min_duration =    time between start and first transition
                       time between final state and end
                       time between intermediate state transitions
@@ -62,6 +65,20 @@ def fake_ber_firing(nrns,
             this_p[palatability_state,nrn] =  this_p[palatability_state,nrn]*np.linspace(1,taste_scaling_value[nrn],4)[taste]
         mean_p.append(this_p)
         
+    all_p = np.empty((4,trials,nrns,len(state_order)))
+    for taste in range(4):
+        for trial in range(trials):
+            for neuron in range(nrns):
+                this_trial_p = mean_p[taste]
+                if jitter_p_type in 'scaled':
+                    this_trial_p_jitter = this_trial_p*jitter_p*np.random.uniform(-1,1,(this_trial_p.shape))
+                elif jitter_p_type in 'absolute':
+                    this_trial_p_jitter = jitter_p*np.random.uniform(-1,1,(this_trial_p.shape))
+                
+            fin_this_trial_p = this_trial_p + this_trial_p_jitter
+            all_p[taste,trial,:] = np.swapaxes(fin_this_trial_p,0,1)
+    all_p = np.abs(all_p)
+            
     # Transition times for every transition over every trial
     for taste in range(4):
         t = np.zeros((trials, len(state_order)-1)) # trials x num of transitions (2) 
@@ -84,36 +101,25 @@ def fake_ber_firing(nrns,
     # For every trial, for every neuron, walk through time
     # If time has passed a transition, update transition count and use transitions count
     # to index from the appropriate state in state order
-    all_p = np.empty((4,trials,nrns,len(state_order)))
+    
     
     for taste in range(4):
         data = np.zeros((nrns, trials, length)) # neurons x trials x time
         for trial in range(data.shape[1]):
             for neuron in range(data.shape[0]):
                 
-                trans_count = 0 # To keep track of transitions
-                
-                this_trial_p = mean_p[taste]
-                this_trial_p_jitter = this_trial_p*jitter_p*np.random.uniform(-1,1,(this_trial_p.shape))
-                fin_this_trial_p = this_trial_p + this_trial_p_jitter
-                
-# =============================================================================
-#                 this_nrn_p = mean_p[taste][state_order[trans_count], neuron]
-#                 this_nrn_p_jitter = this_nrn_p*jitter_p*np.random.uniform(-1,1)
-#                 fin_this_nrn_p = this_nrn_p + this_nrn_p_jitter
-# =============================================================================
-                all_p[taste,trial,:] = np.swapaxes(fin_this_trial_p,0,1)
+                trans_count = 0 # To keep track of transition
                 
                 for time in range(data.shape[2]):
                     try:
                         if time < all_t[taste][trial,trans_count, neuron]:
-                            data[neuron, trial, time] = np.random.binomial(1, fin_this_trial_p[trans_count, neuron])
+                            data[neuron, trial, time] = np.random.binomial(1, all_p[taste, trial, neuron, trans_count])
                         else:
                             trans_count += 1
-                            data[neuron, trial, time] = np.random.binomial(1, fin_this_trial_p[trans_count, neuron])
+                            data[neuron, trial, time] = np.random.binomial(1, all_p[taste, trial, neuron, trans_count])
                     except: # Lazy programming -_-
                         if trans_count >= all_t[taste].shape[1]:
-                            data[neuron, trial, time] = np.random.binomial(1, fin_this_trial_p[trans_count, neuron])
+                            data[neuron, trial, time] = np.random.binomial(1, all_p[taste, trial, neuron, trans_count])
         all_data.append(data)
         
     return all_data, all_t, mean_p, all_p, taste_scaling_value
@@ -131,6 +137,7 @@ def fake_cat_firing(nrns,
                     ceil_p,
                     jitter_t,
                     jitter_p,
+                    jitter_p_type,
                     min_duration):
     """
     Converts data from fake_ber_firing into a categorical format
@@ -155,6 +162,7 @@ def fake_cat_firing(nrns,
                                 ceil_p,
                                 jitter_t,
                                 jitter_p,
+                                jitter_p_type,
                                 min_duration)
     
     ber_spikes = [np.swapaxes(this_ber_spikes,0,1) for this_ber_spikes in ber_spikes]
@@ -191,6 +199,7 @@ def make_fake_file(filename,
                     ceil_p,
                     jitter_t,
                     jitter_p,
+                    jitter_p_type,
                     min_duration,
                     data_type = 'cat'):
     """
@@ -206,6 +215,7 @@ def make_fake_file(filename,
                             ceil_p,
                             jitter_t,
                             jitter_p,
+                            jitter_p_type,
                             min_duration)
     elif data_type is 'cat':
         data, t, p, all_p, scaling = fake_cat_firing(
@@ -217,6 +227,7 @@ def make_fake_file(filename,
                             ceil_p,
                             jitter_t,
                             jitter_p,
+                            jitter_p_type,
                             min_duration)        
     
     params = {
@@ -228,6 +239,7 @@ def make_fake_file(filename,
             'ceil_p' : ceil_p,
             'jitter_t' : jitter_t,
             'jitter_p' : jitter_p,
+            'jitter_p_type' : jitter_p_type,
             'min_duration' : min_duration
             #'scaling' : scaling
             }
