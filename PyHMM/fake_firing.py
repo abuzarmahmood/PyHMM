@@ -13,6 +13,7 @@ import copy
 import tables
 import csv
 import seaborn as sns
+import pandas as pd
     
 #############
 # BERNOULLI #
@@ -50,7 +51,7 @@ def fake_ber_firing(nrns,
     # Returns data array, transition times, emission probabilities
     all_data = []
     all_t = [] # Transition times for 4 tastes -> generated randomly
-    all_p = [] # Firing probabilities for 4 tastes -> scaled by palatability
+    mean_p = [] # Firing probabilities for 4 tastes -> scaled by palatability
     num_states = len(np.unique(state_order))   
     # Emission probabilities of neurons for every state
     p = np.random.rand(num_states, nrns)*ceil_p # states x neuron
@@ -59,7 +60,7 @@ def fake_ber_firing(nrns,
         this_p = copy.deepcopy(p)
         for nrn in range(this_p.shape[1]):
             this_p[palatability_state,nrn] =  this_p[palatability_state,nrn]*np.linspace(1,taste_scaling_value[nrn],4)[taste]
-        all_p.append(this_p)
+        mean_p.append(this_p)
         
     # Transition times for every transition over every trial
     for taste in range(4):
@@ -83,26 +84,39 @@ def fake_ber_firing(nrns,
     # For every trial, for every neuron, walk through time
     # If time has passed a transition, update transition count and use transitions count
     # to index from the appropriate state in state order
+    all_p = np.empty((4,trials,nrns,len(state_order)))
+    
     for taste in range(4):
         data = np.zeros((nrns, trials, length)) # neurons x trials x time
         for trial in range(data.shape[1]):
             for neuron in range(data.shape[0]):
+                
                 trans_count = 0 # To keep track of transitions
+                
+                this_trial_p = mean_p[taste]
+                this_trial_p_jitter = this_trial_p*jitter_p*np.random.uniform(-1,1,(this_trial_p.shape))
+                fin_this_trial_p = this_trial_p + this_trial_p_jitter
+                
+# =============================================================================
+#                 this_nrn_p = mean_p[taste][state_order[trans_count], neuron]
+#                 this_nrn_p_jitter = this_nrn_p*jitter_p*np.random.uniform(-1,1)
+#                 fin_this_nrn_p = this_nrn_p + this_nrn_p_jitter
+# =============================================================================
+                all_p[taste,trial,:] = np.swapaxes(fin_this_trial_p,0,1)
+                
                 for time in range(data.shape[2]):
-                    this_nrn_p = all_p[taste][state_order[trans_count], neuron]
-                    this_nrn_p_jitter = this_nrn_p*jitter_p*np.random.uniform(-1,1)
                     try:
                         if time < all_t[taste][trial,trans_count, neuron]:
-                            data[neuron, trial, time] = np.random.binomial(1, this_nrn_p + this_nrn_p_jitter)
+                            data[neuron, trial, time] = np.random.binomial(1, fin_this_trial_p[trans_count, neuron])
                         else:
                             trans_count += 1
-                            data[neuron, trial, time] = np.random.binomial(1, this_nrn_p + this_nrn_p_jitter)
+                            data[neuron, trial, time] = np.random.binomial(1, fin_this_trial_p[trans_count, neuron])
                     except: # Lazy programming -_-
                         if trans_count >= all_t[taste].shape[1]:
-                            data[neuron, trial, time] = np.random.binomial(1, this_nrn_p + this_nrn_p_jitter)
+                            data[neuron, trial, time] = np.random.binomial(1, fin_this_trial_p[trans_count, neuron])
         all_data.append(data)
         
-    return all_data, all_t, all_p, taste_scaling_value
+    return all_data, all_t, mean_p, all_p, taste_scaling_value
 
 ###############
 # CATEGORICAL #
@@ -133,7 +147,7 @@ def fake_cat_firing(nrns,
     """
     
     # Returns data array, transition times, emission probabilities
-    ber_data = fake_ber_firing(nrns,
+    ber_spikes, t, p, all_p, taste_scaling = fake_ber_firing(nrns,
                                 trials,
                                 length,
                                 state_order,
@@ -142,8 +156,6 @@ def fake_cat_firing(nrns,
                                 jitter_t,
                                 jitter_p,
                                 min_duration)
-    
-    ber_spikes, t, p, taste_scaling = ber_data[0], ber_data[1], ber_data[2], ber_data[3]
     
     ber_spikes = [np.swapaxes(this_ber_spikes,0,1) for this_ber_spikes in ber_spikes]
     
@@ -167,7 +179,7 @@ def fake_cat_firing(nrns,
                     cat_binned_spikes[i,j] = firing_unit + 1
         all_cat_spikes.append(cat_binned_spikes)
         
-    return all_cat_spikes, t, p, taste_scaling
+    return all_cat_spikes, t, p, all_p, taste_scaling
     
 
 def make_fake_file(filename, 
@@ -243,6 +255,56 @@ def make_fake_file(filename,
     
     return data, t, p, scaling
 
+def prob_plot(all_p):
+    """
+    4D array: Taste x Trials x Nrns x State
+    Generates swarmplots with trials as dots, different states colored and different nrns
+    along the x axis
+    Different tastes are placed in different subplots
+    """
+    count = 0
+    all_p_frame = pd.DataFrame()
+    for taste in range(all_p.shape[0]):
+        for trial in range(all_p.shape[1]):
+            for nrn in range(all_p.shape[2]):
+                for state in range(all_p.shape[3]):
+                    this_point = {'taste' : taste,
+                                  'trial' : trial,
+                                  'neuron' : nrn,
+                                  'state' : state,
+                                  'firing_p' : all_p[taste,trial,nrn,state]}
+                    all_p_frame = pd.concat([all_p_frame, pd.DataFrame(this_point,index=[count])])
+                    count += 1
+    
+# =============================================================================
+#     fig, ax = plt.subplots(nrows = all_p.shape[0], ncols = 1, sharey = True)
+#     for taste in range(all_p.shape[0]):
+#         #plt.subplot(all_p.shape[0],1,taste+1)
+#         plt.sca(ax[taste])
+#         sns.boxplot(data = all_p_frame.query('taste == %i' % taste), x = 'neuron', y = 'firing_p',hue = 'state',dodge=True)
+#         
+# =============================================================================
+    count = 0
+    nrows = np.int(np.floor(np.sqrt(all_p.shape[2])))
+    ncols = np.int(np.ceil(all_p.shape[2]/nrow))
+    fig, ax = plt.subplots(nrows = nrows, ncols = ncols, sharey = True)
+    for rows in range(row_col):
+        for cols in range(row_col):
+            if count >= all_p.shape[2]:
+                break
+            plt.sca(ax[rows,cols])
+            #ax = plt.gca()
+            #ax.legend_ = None
+            #plt.draw()
+            #ax[rows,cols].legend().set_visible(False)
+            this_plot = sns.boxplot(data = all_p_frame.query('neuron == %i' % count), 
+                        x = 'state', y = 'firing_p',hue = 'taste',
+                        dodge=True)
+            this_plot.legend_ = None
+            plt.draw()
+            count += 1
+            
+    return fig
 # Raster plot
 def raster(data,trans_times=None,expected_latent_state=None):
     #If bernoulli data, take three 2D arrays: 
