@@ -9,8 +9,10 @@
 # Import stuff
 import numpy as np
 import pylab as plt
-from random import uniform
 import copy
+import tables
+import csv
+import seaborn as sns
     
 #############
 # BERNOULLI #
@@ -23,28 +25,33 @@ import copy
 def fake_ber_firing(nrns,
                     trials,
                     length,
-                    num_states,
                     state_order,
                     palatability_state,
                     ceil_p,
                     jitter_t,
+                    jitter_p,
                     min_duration):
-    # nrns = number of neurons (emissions)
-    # trials = number of trials
-    # length = number of bins for data
-    # state_order = LIST: fixed order for states
-    # ceil_p = maximum firing probability
-    # jitter_t = max amount of jitter between neurons for a state transition
-    # min_duration =    time between start and first transition
-    #                   time between final state and end
-    #                   time between intermediate state transitions
-    
+    """
+    nrns = number of neurons (emissions)
+    trials = number of trials
+    length = number of bins for data
+    num_states = number of distinct states generated
+    state_order = LIST: fixed order for states
+    palatability_state = integer indicating which state to be taken as palatability
+            Used to change firing rate to produce palatability correlations
+    ceil_p = maximum firing probability
+    jitter_t = max amount of jitter between neurons for a state transition (IN BINS)
+    jitter_p = fraction of jitter in probability between trials of each neuron
+    min_duration =    time between start and first transition
+                      time between final state and end
+                      time between intermediate state transitions
+    """
     
     # Returns data array, transition times, emission probabilities
     all_data = []
     all_t = [] # Transition times for 4 tastes -> generated randomly
     all_p = [] # Firing probabilities for 4 tastes -> scaled by palatability
-    
+    num_states = len(np.unique(state_order))   
     # Emission probabilities of neurons for every state
     p = np.random.rand(num_states, nrns)*ceil_p # states x neuron
     taste_scaling_value = np.random.rand(nrns)*2
@@ -66,7 +73,7 @@ def fake_ber_firing(nrns,
                 last_trans = (t[trial,-1] + min_duration > length) # Make sure last transition is min_duration before the end
                 middle_trans = np.sum(t[trial,1:] - t[trial,0:-1] < min_duration)  # Make sure there is a distance of min_duration between all intermediate transitions
            
-            print(trial)
+        print(taste)
         
         t = np.repeat(t[:, :, np.newaxis], nrns, axis=2) # trials x num of transitions x neurons
         t = t + np.random.uniform(-1,1,t.shape)*jitter_t # Add jitter to individual neuron transitions
@@ -82,15 +89,17 @@ def fake_ber_firing(nrns,
             for neuron in range(data.shape[0]):
                 trans_count = 0 # To keep track of transitions
                 for time in range(data.shape[2]):
+                    this_nrn_p = all_p[taste][state_order[trans_count], neuron]
+                    this_nrn_p_jitter = this_nrn_p*jitter_p*np.random.uniform(-1,1)
                     try:
                         if time < all_t[taste][trial,trans_count, neuron]:
-                            data[neuron, trial, time] = np.random.binomial(1, all_p[taste][state_order[trans_count],neuron])
+                            data[neuron, trial, time] = np.random.binomial(1, this_nrn_p + this_nrn_p_jitter)
                         else:
                             trans_count += 1
-                            data[neuron, trial, time] = np.random.binomial(1, all_p[taste][state_order[trans_count],neuron])
+                            data[neuron, trial, time] = np.random.binomial(1, this_nrn_p + this_nrn_p_jitter)
                     except: # Lazy programming -_-
                         if trans_count >= all_t[taste].shape[1]:
-                            data[neuron, trial, time] = np.random.binomial(1, all_p[taste][state_order[trans_count],neuron])
+                            data[neuron, trial, time] = np.random.binomial(1, this_nrn_p + this_nrn_p_jitter)
         all_data.append(data)
         
     return all_data, all_t, all_p, taste_scaling_value
@@ -100,41 +109,139 @@ def fake_ber_firing(nrns,
 ###############
 # Approximation to categorical data since I'm lazy
 # Take data from bernoulli trials and convert to categorical
-def fake_cat_firing(nrns,trials,length,num_states,state_order,ceil_p,jitter_t,min_duration):
-    # nrns = number of neurons (emissions)
-    # trials = number of trials
-    # length = number of bins for data
-    # state_order = LIST: fixed order for states
-    # ceil_p = maximum firing probability
-    # jitter_t = max amount of jitter between neurons for a state transition
-    # min_duration =    time between start and first transition
-    #                   time between final state and end
-    #                   time between intermediate state transitions
-    
+def fake_cat_firing(nrns,
+                    trials,
+                    length,
+                    state_order,
+                    palatability_state,
+                    ceil_p,
+                    jitter_t,
+                    jitter_p,
+                    min_duration):
+    """
+    Converts data from fake_ber_firing into a categorical format
+    PARAMS:
+    : nrns = number of neurons (emissions)
+    : trials = number of trials
+    : length = number of bins for data
+    : state_order = LIST: fixed order for states
+    : ceil_p = maximum firing probability
+    : jitter_t = max amount of jitter between neurons for a state transition
+    : min_duration =    time between start and first transition
+                           time between final state and end
+                           time between intermediate state transitions
+    """
     
     # Returns data array, transition times, emission probabilities
-    ber_data = fake_ber_firing(nrns,trials,length,num_states,state_order,ceil_p,jitter_t,min_duration)
-    ber_data, t, p = ber_data[0], ber_data[1], ber_data[2]
+    ber_data = fake_ber_firing(nrns,
+                                trials,
+                                length,
+                                state_order,
+                                palatability_state,
+                                ceil_p,
+                                jitter_t,
+                                jitter_p,
+                                min_duration)
     
-    ber_data = np.swapaxes(ber_data,0,1)
+    ber_spikes, t, p, taste_scaling = ber_data[0], ber_data[1], ber_data[2], ber_data[3]
+    
+    ber_spikes = [np.swapaxes(this_ber_spikes,0,1) for this_ber_spikes in ber_spikes]
     
     # Remove multiple spikes in same time bin (for categorical HMM)
-    for i in range(ber_data.shape[0]): # Loop over trials
-        for k in range(ber_data.shape[2]): # Loop over time
-            n_firing_units = np.where(ber_data[i,:,k] > 0)[0]
-            if len(n_firing_units)>0:
-                ber_data[i,:,k] = 0
-                ber_data[i,np.random.choice(n_firing_units),k] = 1
+    for taste in range(len(ber_spikes)): # Loop over tastes
+        for i in range(trials): # Loop over trials
+            for k in range(length): # Loop over time
+                n_firing_units = np.where(ber_spikes[taste][i,:,k] > 0)[0]
+                if len(n_firing_units)>0:
+                    ber_spikes[taste][i,:,k] = 0
+                    ber_spikes[taste][i,np.random.choice(n_firing_units),k] = 1
     
-    # Convert bernoulli trials to categorical data        
-    cat_binned_spikes = np.zeros((ber_data.shape[0],ber_data.shape[2]))
-    for i in range(cat_binned_spikes.shape[0]):
-        for j in range(cat_binned_spikes.shape[1]):
-            firing_unit = np.where(ber_data[i,:,j] > 0)[0]
-            if firing_unit.size > 0:
-                cat_binned_spikes[i,j] = firing_unit + 1
+    # Convert bernoulli trials to categorical data  
+    all_cat_spikes = []
+    for taste in range(len(ber_spikes)):
+        cat_binned_spikes = np.zeros((ber_spikes[0].shape[0],ber_spikes[0].shape[2]))
+        for i in range(cat_binned_spikes.shape[0]):
+            for j in range(cat_binned_spikes.shape[1]):
+                firing_unit = np.where(ber_spikes[taste][i,:,j] > 0)[0]
+                if firing_unit.size > 0:
+                    cat_binned_spikes[i,j] = firing_unit + 1
+        all_cat_spikes.append(cat_binned_spikes)
+        
+    return all_cat_spikes, t, p, taste_scaling
     
-    return cat_binned_spikes, t, p
+
+def make_fake_file(filename, 
+                   nrns,
+                    trials,
+                    length,
+                    state_order,
+                    palatability_state,
+                    ceil_p,
+                    jitter_t,
+                    jitter_p,
+                    min_duration,
+                    data_type = 'cat'):
+    """
+    Creates an HDF5 with fake bernoulli data
+    """
+    if data_type is 'ber':
+        data, t, p, scaling = fake_ber_firing(
+                            nrns,
+                            trials,
+                            length,
+                            state_order,
+                            palatability_state,
+                            ceil_p,
+                            jitter_t,
+                            jitter_p,
+                            min_duration)
+    elif data_type is 'cat':
+        data, t, p, scaling = fake_cat_firing(
+                            nrns,
+                            trials,
+                            length,
+                            state_order,
+                            palatability_state,
+                            ceil_p,
+                            jitter_t,
+                            jitter_p,
+                            min_duration)        
+    
+    params = {
+            'nrns' : nrns,
+            'trials' : trials,
+            'length' : length,
+            'state_order' : state_order,
+            'palatability_state' : palatability_state,
+            'ceil_p' : ceil_p,
+            'jitter_t' : jitter_t,
+            'jitter_p' : jitter_p,
+            'min_duration' : min_duration
+            #'scaling' : scaling
+            }
+    
+    with open(filename + 'params.csv','w') as f:
+        w = csv.writer(f)
+        w.writerows(params.items())
+        
+    hf5 = tables.open_file(filename + '.h5', mode = 'w', title = 'Fake Data')
+    
+    hf5.create_array('/', 'scaling', scaling, createparents=True)
+# =============================================================================
+#     hf5.create_array('/', 'spike_array', data, createparents=True)
+#     hf5.create_array('/', 'transition_times', t, createparents=True)
+#     hf5.create_array('/', 'probability_values', p, createparents=True)
+# =============================================================================
+    for taste in range(len(data)):
+        hf5.create_array('/spike_trains/dig_in_%i' % (taste), 'spike_array', data[taste], createparents=True)
+        hf5.create_array('/spike_trains/dig_in_%i' % (taste), 'transition_times', t[taste], createparents=True)
+        hf5.create_array('/spike_trains/dig_in_%i' % (taste), 'probability_values', p[taste], createparents=True)
+    
+    
+    hf5.flush()
+    hf5.close()
+    
+    return data, t, p, scaling
 
 # Raster plot
 def raster(data,trans_times=None,expected_latent_state=None):
@@ -196,3 +303,4 @@ def raster(data,trans_times=None,expected_latent_state=None):
             
     plt.xlabel('Time post stimulus (ms)')
     plt.ylabel('Neuron')
+    
