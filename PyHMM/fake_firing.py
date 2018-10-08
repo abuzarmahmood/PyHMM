@@ -197,7 +197,7 @@ def make_fake_file(filename,
     Creates an HDF5 with fake bernoulli data
     """
     if data_type is 'ber':
-        data, t, p, scaling = fake_ber_firing(
+        data, t, p, all_p, scaling = fake_ber_firing(
                             nrns,
                             trials,
                             length,
@@ -208,7 +208,7 @@ def make_fake_file(filename,
                             jitter_p,
                             min_duration)
     elif data_type is 'cat':
-        data, t, p, scaling = fake_cat_firing(
+        data, t, p, all_p, scaling = fake_cat_firing(
                             nrns,
                             trials,
                             length,
@@ -253,7 +253,7 @@ def make_fake_file(filename,
     hf5.flush()
     hf5.close()
     
-    return data, t, p, scaling
+    return data, t, p, all_p, scaling
 
 def prob_plot(all_p):
     """
@@ -286,10 +286,10 @@ def prob_plot(all_p):
 # =============================================================================
     count = 0
     nrows = np.int(np.floor(np.sqrt(all_p.shape[2])))
-    ncols = np.int(np.ceil(all_p.shape[2]/nrow))
+    ncols = np.int(np.ceil(all_p.shape[2]/nrows))
     fig, ax = plt.subplots(nrows = nrows, ncols = ncols, sharey = True)
-    for rows in range(row_col):
-        for cols in range(row_col):
+    for rows in range(nrows):
+        for cols in range(ncols):
             if count >= all_p.shape[2]:
                 break
             plt.sca(ax[rows,cols])
