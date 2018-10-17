@@ -58,11 +58,11 @@ for file in range(1,7):
     
     # Assign the params to variables
     min_states = int(params[0])
-    max_states = int(params[1])
+    #max_states = int(params[1])
+    max_states = 5
     max_iterations = int(params[2])
     threshold = float(params[3])
     seeds = int(params[4])
-    #taste = int(params[5])
     start_t = int(params[6])
     end_t = int(params[7])
     bin_size = int(params[8])
@@ -72,7 +72,7 @@ for file in range(1,7):
     chosen_units = []
     for line in f.readlines():
     	chosen_units.append(int(line))
-    chosen_units = np.array(chosen_units) -1
+    chosen_units = np.array(chosen_units)
     
     # Open up hdf5 file
     hf5 = tables.open_file(hdf5_name, 'r+')
@@ -152,8 +152,16 @@ for file in range(1,7):
     # | |    | | |_  | |  | | (_) | (_| |  __/ |
     # |_|    |_|\__| |_|  |_|\___/ \__,_|\___|_|
     #
+    try:
+        hf5.remove_node('/map_hmm',recursive =  True)
+    except:
+        pass
+    try:
+        hf5.remove_node('/var_hmm',recursive =  True)
+    except:
+        pass
     
-    seed_num = 100
+    seed_num = 30
     
     for cond_dir in ['off', 'on']:
     

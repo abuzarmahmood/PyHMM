@@ -318,7 +318,7 @@ def prob_plot(all_p):
             
     return fig
 # Raster plot
-def raster(data,trans_times=None,expected_latent_state=None):
+def raster(data,trans_times=None,expected_latent_state=None,line_length = 0.5):
     #If bernoulli data, take three 2D arrays: 
         # data : neurons x time
         # trans_times : num_transition x neurons
@@ -334,7 +334,7 @@ def raster(data,trans_times=None,expected_latent_state=None):
         for unit in range(data.shape[0]):
             for time in range(data.shape[1]):
                 if data[unit, time] > 0:
-                    plt.vlines(time, unit, unit + 0.5, linewidth = 0.5)
+                    plt.vlines(time, unit, unit + line_length, linewidth = 0.5)
         # Plot state probability
         if expected_latent_state is not None:
             plt.plot(expected_latent_state.T*data.shape[0])
@@ -349,14 +349,14 @@ def raster(data,trans_times=None,expected_latent_state=None):
         if trans_times is not None:
             for unit in range(data.shape[0]):
                 for transition in range(trans_times.shape[0]):
-                    plt.vlines(trans_times[transition,unit], unit, unit+0.5, linewidth = 3, color = 'y')
+                    plt.vlines(trans_times[transition,unit], unit, unit + line_length, linewidth = 3, color = 'y')
     
     # Categorical Data
     else:
         # Plot spikes
        for time in range(data.shape[0]):
            if data[time] > 0:
-               plt.vlines(time, data[time], data[time] + 0.5, linewidth = 0.5)
+               plt.vlines(time, data[time], data[time] + line_length, linewidth = 0.5)
                
         # Plot state probabilities
        if expected_latent_state is not None:
@@ -372,7 +372,7 @@ def raster(data,trans_times=None,expected_latent_state=None):
        if trans_times is not None:
             for unit in range(trans_times.shape[1]):
                 for transition in range(trans_times.shape[0]):
-                    plt.vlines(trans_times[transition,unit], unit, unit+0.5, linewidth = 3, color = 'y')
+                    plt.vlines(trans_times[transition,unit], unit, unit + line_length, linewidth = 3, color = 'y')
         
             
     plt.xlabel('Time post stimulus (ms)')

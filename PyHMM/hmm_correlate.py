@@ -16,7 +16,11 @@
 
 import numpy as np
 from scipy.stats import spearmanr, pearsonr
+from sklearn import preprocessing
 from align_trials_funcs import *
+import pylab as plt
+import os
+import shutil
 
 class hmm_correlate:
     """
@@ -46,7 +50,6 @@ class hmm_correlate:
         self.flags = []
         self.aligned_data = []
         self.unaligned_data = []
-        self.correlations = {'off_al':None,'on_al':None,'off_un':None,'on_un':None}
     
     def calc_firing_rate(self, window_size, step_size):
         """
@@ -192,7 +195,10 @@ class hmm_correlate:
             self.aligned_data = all_aligned_data
             self.unaligned_data = all_unaligned_data
         
-    def calc_correlations(self):      
+    def calc_correlations(self): 
+        self.all_data = {}
+        self.correlations = {}
+        
         off_aligned = []
         off_unaligned = []
         on_aligned = []
@@ -202,6 +208,9 @@ class hmm_correlate:
             off_unaligned.append(self.unaligned_data[taste][:,self.off_trials[taste],:])
             on_aligned.append(self.aligned_data[taste][:,self.on_trials[taste],:])
             on_unaligned.append(self.unaligned_data[taste][:,self.on_trials[taste],:])
+        
+        self.all_data = dict(zip(['off_al','on_al','off_un','on_un'],
+            [off_aligned, on_aligned, off_unaligned, on_unaligned]))
         
         def list2square(x) :
             trial_num = x[0].shape[1]
@@ -230,7 +239,52 @@ class hmm_correlate:
                 cor_off_unaligned[nrn,time] = spearmanr(off_unaligned[nrn,:,time],palatability_vec)[0]
                 cor_on_unaligned[nrn,time] = spearmanr(on_unaligned[nrn,:,time],palatability_vec)[0]
         
-        self.correlations['off_al'] = cor_off_aligned
-        self.correlations['on_al'] = cor_on_aligned
-        self.correlations['off_un'] = cor_off_unaligned
-        self.correlations['on_un'] = cor_on_unaligned
+        self.correlations = dict(zip(['off_al','on_al','off_un','on_un'], 
+            [cor_off_aligned, cor_on_aligned, cor_off_unaligned, cor_on_unaligned]))
+        
+    def summarize(self):
+        """
+        Make summary of alignment and correlations
+        Plot outputs to plot_dir
+        Make sure plot_dir is specified
+        """
+        
+        assert(len(self.plot_dir)> 0), 'plot_dir is not specified'
+        
+        if os.path.isdir(self.plot_dir):
+            shutil.rmtree(self.plot_dir)
+        os.makedirs(self.plot_dir)
+        
+        # Correlation plots
+        rows = int(np.floor(np.sqrt(len(self.correlations))))
+        cols = int(np.ceil(len(self.correlations)/rows))
+        cor_plot, ax = plt.subplots(rows,cols,sharex = 'all', sharey = 'all')
+        count = 0
+        for i in range(rows):
+            for j in range(cols):
+                ax[i,j].plot(np.mean(list(self.correlations.values())[count]**2,axis=0))
+                ax[i,j].title.set_text(list(self.correlations.keys())[count])
+                count += 1
+                
+        # Firing rate plots
+        # For every taste: Make aligned, unaligned and on vs off plots
+        for taste in range(len(list(self.all_data.values())[0])):        
+            rows = 4
+            cols = 1
+            cor_plot, ax = plt.subplots(rows,cols,sharex = 'all', sharey = 'all')
+            count = 0
+            for i in range(rows):
+                    ax[i].imshow(preprocessing.scale(np.sum(list(self.all_data.values())[count][taste],axis=1)))     
+        
+            
+        
+# =============================================================================
+#         all_aligned = np.asarray(self.aligned_data)
+#         all_aligned = all_aligned.reshape((int(all_aligned.size / all_aligned.shape[3]),all_aligned.shape[3]))
+#         
+#         all_unaligned = np.asarray(self.unaligned_data)
+#         all_unaligned = all_unaligned.reshape((int(all_unaligned.size / all_unaligned.shape[3]),all_unaligned.shape[3]))
+# 
+# =============================================================================
+        
+            

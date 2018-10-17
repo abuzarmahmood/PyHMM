@@ -32,7 +32,7 @@ import multiprocessing as mp
 
 def hmm_cat_map(binned_spikes, seed, num_states, initial_conds_type = 'des', 
                 max_iter = 1500, threshold = 1e-4):
-"""
+    """
     Categorical Maximum a-posteriori HMM
     Priors are defined as pseudocounts (since these HMM are discrete)    
     Initial conditions and pseudocounts can either be 'des' (designed) or 'rand' (random)
@@ -55,7 +55,7 @@ def hmm_cat_map(binned_spikes, seed, num_states, initial_conds_type = 'des',
     
     Returns -> model as generated in DiscreteHMM.CategoricalHMM
         
-"""
+    """
     
     np.random.seed(seed)
     n_emissions = np.max(binned_spikes).astype('int') + 1 # 0-indexing
